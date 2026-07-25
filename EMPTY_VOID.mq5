@@ -1,37 +1,47 @@
 //+------------------------------------------------------------------+
 //|                                                   EMPTY_VOID.mq5 |
-//|                     EMPTY_VOID DESTRUCTIVE_CORE v1.0.0.1         |
+//|                     EMPTY_VOID DESTRUCTIVE_CORE v2.0.0           |
 //|                                     OPERADOR : NECRO_SILVER      |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2026, EMPTY_VOID CORE | NECRO_SILVER"
 #property link      "https://www.mql5.com"
-#property version   "1.001"
+#property version   "2.000"
 #property strict
-#property description "🏦 EMPTY_VOID DESTRUCTIVE_CORE v1.0.0.1 (FASE 2)"
+#property description "🏦 EMPTY_VOID DESTRUCTIVE_CORE v2.0.0 (FASE 3)"
 #property description "👤 CREADOR: NECRO_SILVER"
 #property description "------------------------------------------------"
-#property description "ARQUITECTURA BASE Y MÓDULOS FASE 1 & 2:"
-#property description " 1. Security      :: BLACK_SCHOLES_MK13 Quantitative Shield"
-#property description " 2. Core          :: Magic Number Manager & Comment Builder"
+#property description "ARQUITECTURA BASE Y MÓDULOS FASE 1, 2 & 3:"
+#property description " 1. Core          :: Config, MagicNumberManager, CommentTagBuilder, VoidState"
+#property description " 2. Security      :: BLACK_SCHOLES_MK13 & VoidSecurityHub (Tiers Dynamic N(d2))"
 #property description " 3. Theme         :: Cyberpunk Neon Palette & Styling"
 #property description " 4. ProfitTracker :: Floating, Closed & Drawdown Metrics"
-#property description " 5. Notifications :: News Watcher & Startup Journal Banner"
+#property description " 5. Notifications :: NewsWatcher, StartupReport & TradeAlerts"
+#property description " 6. Engines       :: IEngine Interface & Signal Architecture"
 
-#include <EMPTY_VOID/Security/BLACK_SCHOLES_MK13.mqh>
+#include <EMPTY_VOID/Core/Config.mqh>
 #include <EMPTY_VOID/Core/MagicNumberManager.mqh>
 #include <EMPTY_VOID/Core/CommentTagBuilder.mqh>
+#include <EMPTY_VOID/Core/VoidState.mqh>
+#include <EMPTY_VOID/Security/BLACK_SCHOLES_MK13.mqh>
+#include <EMPTY_VOID/Security/VoidSecurityHub.mqh>
 #include <EMPTY_VOID/Theme/Theme_Cyberpunk.mqh>
 #include <EMPTY_VOID/ProfitTracker/ProfitTracker.mqh>
 #include <EMPTY_VOID/Notifications/NewsWatcher.mqh>
 #include <EMPTY_VOID/Notifications/StartupReport.mqh>
+#include <EMPTY_VOID/Notifications/TradeAlerts.mqh>
+#include <EMPTY_VOID/Engines/IEngine.mqh>
 
-//=== CONFIGURACIÓN Y PARÁMETROS FASE 1 & 2 ===
-input group "=== MÓDULO CUANTITATIVO BLACK-SCHOLES MK13 ==="
-input bool     InpBsEnabled            = true;      // Habilitar Módulo Black-Scholes MK13
+//=== CONFIGURACIÓN Y PARÁMETROS FASE 3 ===
+input group "=== MÓDULO CUANTITATIVO Y SEGURIDAD BLACK-SCHOLES MK13 ==="
+input bool     InpBsEnabled            = true;      // Habilitar Módulo Black-Scholes MK13 & SecurityHub
 input double   InpBsAnnualVol          = 16.0;      // Volatilidad Implícita Anualizada (%)
 input double   InpBsTargetHours        = 4.0;       // Horizonte de tiempo de la orden (Horas)
 input double   InpBsMinProb            = 40.0;      // Probabilidad Delta Mínima N(d2) (%)
 input double   InpBsMaxSpreadMult      = 2.0;       // Multiplicador máximo de spread permitido
+
+input group "=== NOTIFICACIONES Y ALERTAS ==="
+input bool     InpEnableAlerts         = true;      // Habilitar Alertas Visuales en Pantalla
+input bool     InpEnablePush           = false;     // Habilitar Notificaciones Push MT5
 
 // Variables de memoria globales de estado
 double   g_emaSpread      = 0.0;
@@ -46,7 +56,7 @@ int OnInit()
     string sym = _Symbol;
     if(StringFind(sym, "XAU") < 0 && StringFind(sym, "GOLD") < 0 && StringFind(sym, "Gold") < 0)
     {
-        PrintFormat("⚠️ [EMPTY_VOID INICIALIZACIÓN FALLIDA]: El símbolo activo '%s' no es ORO (XAUUSD). Este bot está optimizado exclusivamente para XAUUSD.", sym);
+        PrintFormat("⚠️ [%s INICIALIZACIÓN FALLIDA]: El símbolo activo '%s' no es ORO (XAUUSD). Este bot está optimizado exclusivamente para %s.", BOT_NAME, sym, BOT_SYMBOL);
         return(INIT_FAILED);
     }
 
@@ -57,8 +67,15 @@ int OnInit()
     g_emaSpread      = 0.0;
     g_expansionStart = 0;
 
-    // 4. Imprimir Reporte Consolidado Banner de Inicialización en el Journal de MT5 (FASE 2)
+    // 4. Guardar Estado Persistente de Inicialización
+    CVoidState::SetState("LastInitTime", (double)TimeCurrent());
+    CVoidState::SetState("BotVersion", 2.0);
+
+    // 5. Imprimir Reporte Consolidado Banner de Inicialización en el Journal de MT5 (FASE 3)
     CVoidStartupReport::PrintStartupBanner();
+
+    // 6. Emitir Notificación de Inicialización del Sistema
+    CVoidTradeAlerts::NotifyInfo(StringFormat("%s v%s FASE 3 Inicializado Correctamente en %s.", BOT_NAME, BOT_VERSION, sym));
 
     return(INIT_SUCCEEDED);
 }
@@ -68,7 +85,7 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
-    Print("🧹 [EMPTY_VOID FASE 1]: Módulos desactivados y recursos liberados.");
+    PrintFormat("🧹 [%s FASE 3]: Módulos desactivados y recursos liberados.", BOT_NAME);
 }
 
 //+------------------------------------------------------------------+
@@ -76,19 +93,19 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 void OnTick()
 {
-    // 1. Monitoreo y actualización del Escudo de Spread de BLACK_SCHOLES_MK13
+    // 1. Monitoreo y actualización del Escudo de Spread vía VoidSecurityHub
     if(InpBsEnabled)
     {
         double currentSpread = (double)SymbolInfoInteger(_Symbol, SYMBOL_SPREAD);
-        bool isExpanded = CBlackScholesMK13::ProcessSpreadShield(currentSpread, g_emaSpread, g_expansionStart, InpBsMaxSpreadMult);
+        bool isSafe = CVoidSecurityHub::CheckSpreadSafety(currentSpread, g_emaSpread, g_expansionStart, InpBsMaxSpreadMult);
 
-        if(isExpanded)
+        if(!isSafe)
         {
             // Bloqueo de seguridad defensivo por iliquidez o salto anómalo de spread
             return;
         }
     }
 
-    // [Fase 1 completada - Los motores direccionales se vincularán en las siguientes fases]
+    // [Fase 3 completada - Los motores direccionales IEngine se vincularán en las siguientes fases]
 }
 //+------------------------------------------------------------------+
