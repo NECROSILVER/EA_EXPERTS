@@ -7,20 +7,25 @@
 #property link      "https://www.mql5.com"
 #property version   "1.001"
 #property strict
-#property description "🏦 EMPTY_VOID DESTRUCTIVE_CORE v1.0.0.1 (FASE 1)"
+#property description "🏦 EMPTY_VOID DESTRUCTIVE_CORE v1.0.0.1 (FASE 2)"
 #property description "👤 CREADOR: NECRO_SILVER"
 #property description "------------------------------------------------"
-#property description "ARQUITECTURA BASE Y MÓDULOS FASE 1:"
+#property description "ARQUITECTURA BASE Y MÓDULOS FASE 1 & 2:"
 #property description " 1. Security      :: BLACK_SCHOLES_MK13 Quantitative Shield"
 #property description " 2. Core          :: Magic Number Manager & Comment Builder"
 #property description " 3. Theme         :: Cyberpunk Neon Palette & Styling"
+#property description " 4. ProfitTracker :: Floating, Closed & Drawdown Metrics"
+#property description " 5. Notifications :: News Watcher & Startup Journal Banner"
 
 #include <EMPTY_VOID/Security/BLACK_SCHOLES_MK13.mqh>
 #include <EMPTY_VOID/Core/MagicNumberManager.mqh>
 #include <EMPTY_VOID/Core/CommentTagBuilder.mqh>
 #include <EMPTY_VOID/Theme/Theme_Cyberpunk.mqh>
+#include <EMPTY_VOID/ProfitTracker/ProfitTracker.mqh>
+#include <EMPTY_VOID/Notifications/NewsWatcher.mqh>
+#include <EMPTY_VOID/Notifications/StartupReport.mqh>
 
-//=== CONFIGURACIÓN Y PARÁMETROS FASE 1 ===
+//=== CONFIGURACIÓN Y PARÁMETROS FASE 1 & 2 ===
 input group "=== MÓDULO CUANTITATIVO BLACK-SCHOLES MK13 ==="
 input bool     InpBsEnabled            = true;      // Habilitar Módulo Black-Scholes MK13
 input double   InpBsAnnualVol          = 16.0;      // Volatilidad Implícita Anualizada (%)
@@ -52,7 +57,9 @@ int OnInit()
     g_emaSpread      = 0.0;
     g_expansionStart = 0;
 
-    PrintFormat("⚡ [EMPTY_VOID FASE 1]: Inicializado correctamente en %s con Magic Base %d.", sym, EV_MAGIC_BASE);
+    // 4. Imprimir Reporte Consolidado Banner de Inicialización en el Journal de MT5 (FASE 2)
+    CVoidStartupReport::PrintStartupBanner();
+
     return(INIT_SUCCEEDED);
 }
 
