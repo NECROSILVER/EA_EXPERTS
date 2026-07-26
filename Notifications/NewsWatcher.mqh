@@ -4,7 +4,7 @@
 //|                                                                  |
 //| DESCRIPCIÓN:                                                      |
 //| Escáner del Calendario Económico Nativo MT5 para Detectar       |
-//| Eventos Próximos de Alto Impacto para el ORO (USD).              |
+//| Eventos Próximos de Impacto ALTO y MEDIO para el ORO (USD).      |
 //+------------------------------------------------------------------+
 #ifndef NEWS_WATCHER_MQH
 #define NEWS_WATCHER_MQH
@@ -16,10 +16,10 @@ class CVoidNewsWatcher
 {
 public:
     //------------------------------------------------------------------
-    // Retorna la próxima noticia más cercana de alto impacto (USD)
-    // dentro de una ventana de tiempo (por defecto 4 horas)
+    // Retorna la próxima noticia más cercana de impacto ALTO o MEDIO (USD)
+    // dentro de una ventana de tiempo (por defecto 6 horas)
     //------------------------------------------------------------------
-    static string GetTodayNewsSummary(int hoursAhead = 4)
+    static string GetTodayNewsSummary(int hoursAhead = 6)
     {
         datetime now = TimeCurrent();
         datetime endWindow = now + (hoursAhead * 3600);
@@ -41,20 +41,20 @@ public:
                 {
                     if(event.name == "" || event.country_id <= 0) continue;
 
-                    // Filtrar solo eventos de ALTO IMPACTO (Carpeta Roja)
-                    if(event.importance == CALENDAR_IMPORTANCE_HIGH)
+                    // Filtrar por eventos de ALTO (Red) o MEDIO (Orange) impacto
+                    if(event.importance == CALENDAR_IMPORTANCE_HIGH || event.importance == CALENDAR_IMPORTANCE_MODERATE)
                     {
                         MqlCalendarCountry country;
                         if(CalendarCountryById(event.country_id, country))
                         {
-                            // Filtrar por país "US" o moneda "USD"
                             if(country.code == "US" || country.currency == "USD")
                             {
                                 if(nearestTime == 0 || values[i].time < nearestTime)
                                 {
                                     nearestTime = values[i].time;
                                     string timeStr = TimeToString(values[i].time, TIME_MINUTES);
-                                    nearestNewsStr = StringFormat("%s [%s] %s", timeStr, country.currency, event.name);
+                                    string impactTag = (event.importance == CALENDAR_IMPORTANCE_HIGH) ? "ALTO" : "MEDIO";
+                                    nearestNewsStr = StringFormat("%s [USD] [%s] %s", timeStr, impactTag, event.name);
                                 }
                             }
                         }
@@ -65,7 +65,7 @@ public:
 
         if(nearestNewsStr == "")
         {
-            return StringFormat("Sin noticias de alto impacto en las próximas %dh.", hoursAhead);
+            return StringFormat("Sin eventos (Medio/Alto) en las próximas %dh.", hoursAhead);
         }
 
         return nearestNewsStr;
