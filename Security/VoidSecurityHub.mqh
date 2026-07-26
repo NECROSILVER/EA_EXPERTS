@@ -13,6 +13,7 @@
 #property copyright "Copyright 2026, EMPTY_VOID CORE"
 #property strict
 
+#include <EMPTY_VOID/Core/Config.mqh>
 #include <EMPTY_VOID/Security/BLACK_SCHOLES_MK13.mqh>
 
 class CVoidSecurityHub
@@ -64,11 +65,24 @@ public:
     {
         outAdjustedLot  = baseLot;
         outAssignedTier = 0;
-
         string sym = (symbol == NULL || symbol == "") ? _Symbol : symbol;
+        string sideStr = (orderType == ORDER_TYPE_BUY || orderType == ORDER_TYPE_BUY_LIMIT || orderType == ORDER_TYPE_BUY_STOP) ? "BUY" : "SELL";
 
-        // 1. Validación Cuantitativa por Modelo Black-Scholes MK13
-        if(!CBlackScholesMK13::ValidateEntry(
+        // 1. Cálculo probabilístico N(d2) vía Black-Scholes MK13
+        double probPct = 0.0;
+        bool probCalculated = CBlackScholesMK13::CalculateBSProbabilityToTarget(spotPrice, takeProfitPrice, targetTimeHours, annualVolatilityPct, probPct);
+        
+        if(probCalculated)
+        {
+            if(orderType == ORDER_TYPE_SELL || orderType == ORDER_TYPE_SELL_LIMIT || orderType == ORDER_TYPE_SELL_STOP)
+            {
+                probPct = 100.0 - probPct;
+            }
+            outAssignedTier = GetTierFromProbability(probPct);
+        }
+
+        // 2. Validar Entrada con el Módulo Cuantitativo
+        bool isValid = CBlackScholesMK13::ValidateEntry(
             orderType, 
             spotPrice, 
             takeProfitPrice, 
@@ -78,32 +92,21 @@ public:
             baseLot, 
             outAdjustedLot, 
             sym
-        ))
+        );
+
+        // 3. Emitir Log de Auditoría en Vivo en la pestaña Expertos de MT5
+        if(isValid)
         {
-            return false;
-        }
-
-        // 2. Cálculo de la Probabilidad Delta N(d2) y asignación de Tier
-        double probPct = 0.0;
-        if(CBlackScholesMK13::CalculateBSProbabilityToTarget(spotPrice, takeProfitPrice, targetTimeHours, annualVolatilityPct, probPct))
-        {
-            // Ajuste probabilístico para órdenes de venta
-            bool isSellSide = (orderType == ORDER_TYPE_SELL || 
-                               orderType == ORDER_TYPE_SELL_LIMIT || 
-                               orderType == ORDER_TYPE_SELL_STOP || 
-                               orderType == ORDER_TYPE_SELL_STOP_LIMIT);
-
-            if(isSellSide) probPct = 100.0 - probPct;
-
-            outAssignedTier = GetTierFromProbability(probPct);
+            PrintFormat("🛡️ [%s - SECURITY HUB]: Señal APROBADA | Tipo: %s | Probabilidad N(d2): %.2f%% | Tier Asignado: T%d | Lote Base: %.2f -> Lote Ajustado: %.2f",
+                        BOT_NAME, sideStr, probPct, outAssignedTier, baseLot, outAdjustedLot);
         }
         else
         {
-            outAssignedTier = 3; // Fallback seguro
+            PrintFormat("⚠️ [%s - SECURITY HUB]: Señal RECHAZADA por MK13 | Tipo: %s | Probabilidad N(d2): %.2f%% (Mínima: %.2f%%) | Entrada Bloqueada.",
+                        BOT_NAME, sideStr, probPct, minRequiredProbPct);
         }
 
-        // 3. Espacio preparado para encadenar futuros escudos (Drawdown, Swap, Noticias)
-        return true;
+        return isValid;
     }
 };
 

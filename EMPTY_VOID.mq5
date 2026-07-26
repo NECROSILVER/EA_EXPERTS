@@ -206,6 +206,9 @@ void OnTick()
 
     if(signal.hasSignal) 
     {
+        PrintFormat("⚡ [%s - TEMPEST MK5]: Nueva Señal Detectada | Dirección: %s | Precio Entrada: %.2f | SL: %.2f | TP: %.2f | Proximidad: %.0f%%",
+                    BOT_NAME, signal.direction, signal.entryPrice, signal.stopLoss, signal.takeProfit, signal.proximityPct);
+
         double finalLot = signal.baseLot;
         int assignedTier = signal.tierLevel;
 
@@ -225,11 +228,7 @@ void OnTick()
                 _Symbol
             );
 
-            if(!isAllowed)
-            {
-                PrintFormat("🛡️ [%s - SECURITY HUB]: Entrada de TEMPEST rechazada por el filtro Black-Scholes MK13.", BOT_NAME);
-                return;
-            }
+            if(!isAllowed) return; // Bloqueo defensivo registrado en log
         }
 
         // B. Asignar Magic Number dinámico y Comment Tag
