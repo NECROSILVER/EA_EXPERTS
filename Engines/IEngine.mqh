@@ -21,8 +21,9 @@ struct EngineSignal
     double              stopLoss;
     double              baseLot;
     int                 gridLevel;
+    int                 tierLevel; // Clasificador de calidad de setup
 
-    // Constructor por defecto
+    // Constructor por defecto para limpieza de memoria
     EngineSignal()
     {
         hasSignal  = false;
@@ -32,6 +33,7 @@ struct EngineSignal
         stopLoss   = 0.0;
         baseLot    = 0.0;
         gridLevel  = 0;
+        tierLevel  = 0;
     }
 };
 

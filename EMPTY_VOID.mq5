@@ -7,17 +7,9 @@
 #property link      "https://www.mql5.com"
 #property version   "2.000"
 #property strict
-#property description "🏦 EMPTY_VOID DESTRUCTIVE_CORE v2.0.0 (FASE 5)"
-#property description "👤 CREADOR: NECRO_SILVER"
-#property description "------------------------------------------------"
-#property description "ARQUITECTURA BASE Y MÓDULOS FASE 1 AL 5:"
-#property description " 1. Core          :: Config, MagicNumber, State"
-#property description " 2. Security      :: Black-Scholes MK13 & SecurityHub"
-#property description " 3. Theme         :: Cyberpunk Neon Styling"
-#property description " 4. ProfitTracker :: PnL & Drawdown Metrics"
-#property description " 5. Notifications :: NewsWatcher & TradeAlerts"
-#property description " 6. Risk Guard    :: DrawdownGuard & Kill-Switch"
-#property description " 7. UI Dashboard  :: Cyberpunk Visual Panel (1s OnTimer)"
+#property description "🏦 EMPTY_VOID DESTRUCTIVE_CORE v2.0.0"
+#property description "👤 OPERADOR: NECRO_SILVER"
+#property description "⚡ MOTOR INTEGRADO: TEMPEST MK5 (IFVG & Multi-TF)"
 
 #include <Trade/Trade.mqh>
 #include <EMPTY_VOID/Core/Config.mqh>
@@ -36,7 +28,7 @@
 #include <EMPTY_VOID/Engines/Engine_Template.mqh>
 #include <EMPTY_VOID/UI/Dashboard.mqh>
 
-//=== CONFIGURACIÓN Y PARÁMETROS FASE 5 ===
+//=== CONFIGURACIÓN Y PARÁMETROS INTERRUPTOR DE EMERGENCIA Y RIESGO ===
 input group "=== INTERRUPTOR DE EMERGENCIA Y CONTROL DE RIESGO ==="
 input bool     InpEmergencyStop        = false;     // ⚠️ INTERRUPTOR DE EMERGENCIA (KILL-SWITCH)
 input double   InpMaxDailyLossPct      = 5.0;       // Límite Máximo de Pérdida Diaria (%)
@@ -48,9 +40,19 @@ input double   InpBsTargetHours        = 4.0;       // Horizonte de tiempo de la
 input double   InpBsMinProb            = 40.0;      // Probabilidad Delta Mínima N(d2) (%)
 input double   InpBsMaxSpreadMult      = 2.0;       // Multiplicador máximo de spread permitido
 
+input group "=== MÓDULO MOTOR TEMPEST MK5 ==="
+sinput string  tempest_settings      = "--- Ajustes Motor TEMPEST MK5 ---";
+input double   Inp_Tempest_RR        = 2.0;  // Relación Riesgo:Beneficio (Ej. 2.0 = 1:2)
+input int      Inp_Tempest_SL_Buffer = 20;   // Margen de ticks para el Stop Loss
+
 input group "=== NOTIFICACIONES Y ALERTAS ==="
 input bool     InpEnableAlerts         = true;      // Habilitar Alertas Visuales en Pantalla
 input bool     InpEnablePush           = false;     // Habilitar Notificaciones Push MT5
+
+// --- INCLUSIÓN DEL MOTOR TEMPEST MK5 ---
+#include <EMPTY_VOID/Engines/Engine_Tempest.mqh>
+CEngine_Tempest *EngineTempest;
+const int TEMPEST_ENGINE_ID = 105;
 
 // Instancia del ejecutor nativo de órdenes
 CTrade   g_trade;
@@ -129,7 +131,15 @@ int OnInit()
     CVoidStartupReport::PrintStartupBanner();
 
     // 9. Emitir Notificación de Inicialización del Sistema
-    CVoidTradeAlerts::NotifyInfo(StringFormat("%s v%s FASE 5 (Infraestructura Core) Inicializada en %s.", BOT_NAME, BOT_VERSION, sym));
+    CVoidTradeAlerts::NotifyInfo(StringFormat("%s v%s Inicializado en %s.", BOT_NAME, BOT_VERSION, sym));
+
+    // --- INSERCIÓN TEMPEST MK5 ---
+    EngineTempest = new CEngine_Tempest();
+    if(!EngineTempest.Init(TEMPEST_ENGINE_ID, "TMPST_MK5")) {
+        Print("Error inicializando Motor TEMPEST MK5");
+        return INIT_FAILED;
+    }
+    // -----------------------------
 
     return(INIT_SUCCEEDED);
 }
@@ -141,7 +151,13 @@ void OnDeinit(const int reason)
 {
     EventKillTimer();
     CVoidDashboard::Destroy();
-    PrintFormat("🧹 [%s FASE 5]: Dashboard destruido, temporizador detenido y recursos liberados.", BOT_NAME);
+
+    if(CheckPointer(EngineTempest) != POINTER_INVALID) {
+        EngineTempest.OnDeinit();
+        delete EngineTempest;
+    }
+
+    PrintFormat("🧹 [%s]: Dashboard destruido, temporizador detenido y recursos liberados.", BOT_NAME);
 }
 
 //+------------------------------------------------------------------+
@@ -189,6 +205,22 @@ void OnTick()
         }
     }
 
-    // [Infraestructura Core FASE 5 Completada - Lista para vinculación de Motores Direccionales M1, M2, M3]
+    // --- INSERCIÓN TEMPEST MK5 ---
+    EngineSignal signal = EngineTempest.Evaluate();
+    
+    if(signal.hasSignal) {
+        ulong magic = CMagicNumberManager::GetMagicNumber(TEMPEST_ENGINE_ID);
+        g_trade.SetExpertMagicNumber(magic);
+        
+        string comment_tag = CCommentTagBuilder::BuildTag(TEMPEST_ENGINE_ID, signal.tierLevel, signal.gridLevel);
+        
+        if(signal.orderType == ORDER_TYPE_BUY) {
+            g_trade.Buy(signal.baseLot, _Symbol, 0, signal.stopLoss, signal.takeProfit, comment_tag);
+        } 
+        else if(signal.orderType == ORDER_TYPE_SELL) {
+            g_trade.Sell(signal.baseLot, _Symbol, 0, signal.stopLoss, signal.takeProfit, comment_tag);
+        }
+    }
+    // -----------------------------
 }
 //+------------------------------------------------------------------+
