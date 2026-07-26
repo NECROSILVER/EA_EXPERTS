@@ -59,7 +59,10 @@ public:
                 "🚀 %s v%s Inicializado\nSímbolo: %s\nBalance: $%.2f USD\nEquidad: $%.2f USD\nEstado: OPERATIVO 🟢",
                 BOT_NAME, BOT_VERSION, _Symbol, balance, equity
             );
-            SendNotification(pushMsg);
+            if(!SendNotification(pushMsg))
+            {
+                PrintFormat("⚠️ [%s PUSH ERROR]: Falló el envío de notificación Push. Código de error MT5: %d", BOT_NAME, GetLastError());
+            }
         }
     }
 

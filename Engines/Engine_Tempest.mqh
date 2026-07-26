@@ -133,21 +133,24 @@ void CEngine_Tempest::DetectNewFVGs(ENUM_TIMEFRAMES tf) {
     
     if(isBullishFVG || isBearishFVG) {
         int size = ArraySize(m_gaps);
-        ArrayResize(m_gaps, size + 1);
-        m_gaps[size-1].id = ++m_gap_counter;
-        m_gaps[size-1].timeframe = tf;
-        m_gaps[size-1].time_formation = iTime(_Symbol, tf, 2);
-        m_gaps[size-1].is_active = true;
-        m_gaps[size-1].bars_lifetime = 0;
+        int newIdx = size; // Índice correcto del elemento recién añadido
         
-        if(isBullishFVG) {
-            m_gaps[size-1].state = GAP_FVG_BULLISH;
-            m_gaps[size-1].price_upper = candleC_low;
-            m_gaps[size-1].price_lower = candleA_high;
-        } else {
-            m_gaps[size-1].state = GAP_FVG_BEARISH;
-            m_gaps[size-1].price_upper = candleA_low;
-            m_gaps[size-1].price_lower = candleC_high;
+        if(ArrayResize(m_gaps, size + 1) > 0) {
+            m_gaps[newIdx].id = ++m_gap_counter;
+            m_gaps[newIdx].timeframe = tf;
+            m_gaps[newIdx].time_formation = iTime(_Symbol, tf, 2);
+            m_gaps[newIdx].is_active = true;
+            m_gaps[newIdx].bars_lifetime = 0;
+            
+            if(isBullishFVG) {
+                m_gaps[newIdx].state = GAP_FVG_BULLISH;
+                m_gaps[newIdx].price_upper = candleC_low;
+                m_gaps[newIdx].price_lower = candleA_high;
+            } else {
+                m_gaps[newIdx].state = GAP_FVG_BEARISH;
+                m_gaps[newIdx].price_upper = candleA_low;
+                m_gaps[newIdx].price_lower = candleC_high;
+            }
         }
     }
 }
