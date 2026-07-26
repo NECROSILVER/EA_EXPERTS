@@ -98,45 +98,58 @@ void CloseAllBotPositions(string reason)
 //+------------------------------------------------------------------+
 int OnInit()
 {
-    // 1. Validar que el activo sea ORO (XAUUSD / GOLD)
-    string sym = _Symbol;
-    if(StringFind(sym, "XAU") < 0 && StringFind(sym, "GOLD") < 0 && StringFind(sym, "Gold") < 0)
-    {
-        PrintFormat("❌ [%s INICIALIZACIÓN FALLIDA]: El símbolo activo '%s' no es ORO (XAUUSD). Este bot está optimizado exclusivamente para %s.", BOT_NAME, sym, BOT_SYMBOL);
-        return(INIT_FAILED);
-    }
-
-    // 2. Aplicar Tema de Colores Cyberpunk al gráfico actual
+    // 1. Aplicar Tema de Colores Cyberpunk al gráfico actual
     CVoidThemeManager::ApplyCyberpunkTheme(ChartID());
 
-    // 3. Inicializar ejecutor de órdenes
+    // 2. Inicializar ejecutor de órdenes
     g_trade.SetExpertMagicNumber(BOT_MAGIC_BASE);
 
-    // 4. Inicializar variables del escudo de spread Black-Scholes MK13
+    // 3. Inicializar variables del escudo de spread Black-Scholes MK13
     g_emaSpread      = 0.0;
     g_expansionStart = 0;
 
-    // 5. Guardar Estado Persistente de Inicialización
-    CVoidState::SetState("LastInitTime", (double)TimeCurrent());
-    CVoidState::SetState("BotVersion", 2.0);
-
-    // 6. Inicializar Dashboard Visual Cyberpunk Neón (HUD)
+    // 4. Inicializar Dashboard Visual Cyberpunk Neón (HUD)
     CVoidDashboard::Init(_Symbol, 0, 15, 25);
 
-    // 7. Iniciar Temporizador a 1 segundo para refrescar el Dashboard
+    // 5. Iniciar Temporizador a 1 segundo para refrescar el Dashboard
     EventSetTimer(1);
 
-    // 8. Imprimir Reporte Consolidado Banner de Inicialización en el Journal de MT5
+    // 6. Imprimir Reporte Consolidado Banner de Inicialización en el Journal de MT5
     CVoidStartupReport::PrintStartupBanner();
 
-    // 9. Emitir Notificación de Inicialización del Sistema
-    CVoidTradeAlerts::NotifyInfo(StringFormat("%s v%s Inicializado en %s.", BOT_NAME, BOT_VERSION, sym));
+    // --- CHEQUEO DE SALUD DE 4 PUNTOS PARA DISPARO DE NOTIFICACIÓN ---
+    bool isHealthOk = true;
 
-    // --- INSTANCIACIÓN TEMPEST MK5 ---
+    // Punto 1: Validación del Símbolo ORO
+    string sym = _Symbol;
+    if(StringFind(sym, "XAU") < 0 && StringFind(sym, "GOLD") < 0 && StringFind(sym, "Gold") < 0) isHealthOk = false;
+
+    // Punto 2: Permisos de Trading en Bróker y Terminal
+    if(!AccountInfoInteger(ACCOUNT_TRADE_ALLOWED) || !TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)) isHealthOk = false;
+
+    // Punto 3: Instanciación e Inicialización del Motor Tempest
     EngineTempest = new CEngine_Tempest();
-    if(!EngineTempest.Init(TEMPEST_ENGINE_ID, "TMPST_MK5")) {
-        Print("Error inicializando Motor TEMPEST MK5");
-        return INIT_FAILED;
+    if(!EngineTempest.Init(TEMPEST_ENGINE_ID, "TMPST_MK5")) isHealthOk = false;
+
+    // Punto 4: Escritura de Memoria Persistente CVoidState
+    CVoidState::SetState("LastInitTime", (double)TimeCurrent());
+    CVoidState::SetState("BotVersion", 2.1);
+    if(!CVoidState::HasState("LastInitTime")) isHealthOk = false;
+
+    // Disparo de Alerta de Arranque ÚNICAMENTE si las 4 puertas de salud pasaron:
+    if(isHealthOk)
+    {
+        double balance  = AccountInfoDouble(ACCOUNT_BALANCE);
+        double equity   = AccountInfoDouble(ACCOUNT_EQUITY);
+        double drawdown = CVoidProfitTracker::GetBotDrawdownPct();
+        string newsSum  = CVoidNewsWatcher::GetTodayNewsSummary(6);
+
+        CVoidTradeAlerts::NotifyStartup(balance, equity, drawdown, newsSum, InpEnablePush);
+    }
+    else
+    {
+        PrintFormat("❌ [%s INICIALIZACIÓN FALLIDA]: Se detectaron errores de salud en el bot. Notificación cancelada.", BOT_NAME);
+        return(INIT_FAILED);
     }
 
     return(INIT_SUCCEEDED);
