@@ -4,7 +4,7 @@
 //|                                                                  |
 //| DESCRIPCIÓN:                                                      |
 //| Interfaz Base / Clase Abstracta Pura para Motores de Trading     |
-//| (Engines) en la arquitectura EMPTY_VOID v2.0.                   |
+//| (Engines) en la arquitectura EMPTY_VOID v2.1.                   |
 //+------------------------------------------------------------------+
 #ifndef IENGINE_MQH
 #define IENGINE_MQH
@@ -21,19 +21,23 @@ struct EngineSignal
     double              stopLoss;
     double              baseLot;
     int                 gridLevel;
-    int                 tierLevel; // Clasificador de calidad de setup
+    int                 tierLevel;     // Clasificador de calidad de setup
+    double              proximityPct;  // Porcentaje de aproximación al setup (0.0 a 100.0%)
+    string              direction;     // Sesgo direccional: "BUY", "SELL" o "NONE"
 
-    // Constructor por defecto para limpieza de memoria
+    // Constructor por defecto
     EngineSignal()
     {
-        hasSignal  = false;
-        orderType  = ORDER_TYPE_BUY;
-        entryPrice = 0.0;
-        takeProfit = 0.0;
-        stopLoss   = 0.0;
-        baseLot    = 0.0;
-        gridLevel  = 0;
-        tierLevel  = 0;
+        hasSignal    = false;
+        orderType    = ORDER_TYPE_BUY;
+        entryPrice   = 0.0;
+        takeProfit   = 0.0;
+        stopLoss     = 0.0;
+        baseLot      = 0.0;
+        gridLevel    = 0;
+        tierLevel    = 0;
+        proximityPct = 0.0;
+        direction    = "NONE";
     }
 };
 

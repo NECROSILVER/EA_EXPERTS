@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                                   EMPTY_VOID.mq5 |
-//|                     EMPTY_VOID DESTRUCTIVE_CORE v2.0.0           |
+//|                     EMPTY_VOID DESTRUCTIVE_CORE v2.1.0           |
 //|                                     OPERADOR : NECRO_SILVER      |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2026, EMPTY_VOID CORE | NECRO_SILVER"
 #property link      "https://www.mql5.com"
-#property version   "2.000"
+#property version   "2.100"
 #property strict
-#property description "  EMPTY_VOID DESTRUCTIVE_CORE v2.0.0"
+#property description "  EMPTY_VOID DESTRUCTIVE_CORE v2.1.0"
 #property description "  OPERADOR: NECRO_SILVER"
 #property description "  MOTOR INTEGRADO: TEMPEST MK5 (IFVG & Multi-TF)"
 
@@ -166,7 +166,8 @@ void OnTimer()
     double currentSpread = (double)SymbolInfoInteger(_Symbol, SYMBOL_SPREAD);
     bool isSpreadSafe = CVoidSecurityHub::CheckSpreadSafety(currentSpread, g_emaSpread, g_expansionStart, InpBsMaxSpreadMult);
     
-    CVoidDashboard::Update(currentSpread, g_emaSpread, isSpreadSafe, _Symbol);
+    EngineSignal currentSignal = EngineTempest.Evaluate();
+    CVoidDashboard::Update(currentSpread, g_emaSpread, isSpreadSafe, _Symbol, currentSignal.proximityPct, currentSignal.direction);
     ChartRedraw(0);
 }
 

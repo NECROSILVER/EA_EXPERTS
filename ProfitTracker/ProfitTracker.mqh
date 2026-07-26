@@ -4,7 +4,7 @@
 //|                                                                  |
 //| DESCRIPCIÓN:                                                      |
 //| Rastreador de Métricas Financieras y Rendimiento Exclusivo para  |
-//| las posiciones del bot EMPTY_VOID.                               |
+//| las posiciones del bot EMPTY_VOID v2.1.                          |
 //+------------------------------------------------------------------+
 #ifndef PROFIT_TRACKER_MQH
 #define PROFIT_TRACKER_MQH
@@ -13,6 +13,7 @@
 #property strict
 
 #include <EMPTY_VOID/Core/MagicNumberManager.mqh>
+#include <EMPTY_VOID/Core/VoidState.mqh>
 
 class CVoidProfitTracker
 {
@@ -82,16 +83,25 @@ public:
 
     //------------------------------------------------------------------
     // Retorna la ganancia/pérdida total acumulada ($) de operaciones cerradas
+    // exclusivamente por EMPTY_VOID en la sesión activa
     //------------------------------------------------------------------
     static double GetClosedProfit(string symbol = NULL)
     {
         double totalProfit = 0.0;
         string filterSym = (symbol == NULL || symbol == "") ? _Symbol : symbol;
+        
+        // Obtener la hora de inicio de la sesión actual guardada en VoidState (o fallback al inicio del día)
+        datetime sessionStart = (datetime)CVoidState::GetState("LastInitTime", 0.0, filterSym);
+        if(sessionStart <= 0)
+        {
+            MqlDateTime dt;
+            TimeCurrent(dt);
+            sessionStart = StringToTime(StringFormat("%04d.%02d.%02d 00:00:00", dt.year, dt.mon, dt.day));
+        }
 
-        datetime fromTime = 0;
-        datetime toTime   = TimeCurrent();
+        datetime toTime = TimeCurrent();
 
-        if(HistorySelect(fromTime, toTime))
+        if(HistorySelect(sessionStart, toTime))
         {
             int totalDeals = HistoryDealsTotal();
             for(int i = 0; i < totalDeals; i++)
@@ -100,7 +110,6 @@ public:
                 if(ticket > 0)
                 {
                     ENUM_DEAL_ENTRY entry = (ENUM_DEAL_ENTRY)HistoryDealGetInteger(ticket, DEAL_ENTRY);
-
                     // Considerar solo operaciones de salida (Cierres)
                     if(entry == DEAL_ENTRY_OUT || entry == DEAL_ENTRY_INOUT || entry == DEAL_ENTRY_OUT_BY)
                     {
@@ -113,7 +122,6 @@ public:
                             double pnl  = HistoryDealGetDouble(ticket, DEAL_PROFIT);
                             double swap = HistoryDealGetDouble(ticket, DEAL_SWAP);
                             double comm = HistoryDealGetDouble(ticket, DEAL_COMMISSION);
-
                             totalProfit += (pnl + swap + comm);
                         }
                     }

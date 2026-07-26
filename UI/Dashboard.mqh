@@ -109,7 +109,9 @@ public:
         double currentSpread = 0.0, 
         double emaSpread = 0.0, 
         bool isSpreadSafe = true, 
-        string symbol = NULL
+        string symbol = NULL,
+        double tempestProximity = 0.0,
+        string tempestDirection = "NONE"
     )
     {
         string sym = (symbol == NULL || symbol == "") ? _Symbol : symbol;
@@ -186,7 +188,8 @@ public:
         y += lineHeight;
 
         // Etiqueta del Motor TEMPEST
-        string tempestStatusStr = "[ ENGINE_TEMPEST_MK5 ]: ACTIVO & ESCANEANDO iFVG";
+        string tempestStatusStr = StringFormat("[ ENGINE_TEMPEST_MK5 ]: ACTIVO | PROXIMIDAD: %.0f%% | BIAS: %s", 
+                                                tempestProximity, tempestDirection);
         CreateOrUpdateLabel("TempestStatus", tempestStatusStr, x + 10, y, 8, true, C'0,255,140', corner);
         y += lineHeight + 4;
 

@@ -254,6 +254,9 @@ EngineSignal CEngine_Tempest::Evaluate() {
     
     int cached_macro_trend = GetMacroTrend(PERIOD_H1);
     
+    double highestProximity = 0.0;
+    string activeBias = "NONE";
+
     for(int i = 0; i < ArraySize(m_gaps); i++) {
         if(!m_gaps[i].is_active) continue;
 
@@ -261,11 +264,19 @@ EngineSignal CEngine_Tempest::Evaluate() {
         if(tier == TIER_NONE) continue;
 
         if(m_gaps[i].state == GAP_IFVG_BULLISH) {
+            activeBias = "BUY";
+            double dist = MathMax(0.0, current_ask - m_gaps[i].price_upper);
+            double maxDist = 5.0; // 5.0 pips en Oro
+            double prox = MathMax(0.0, MathMin(99.0, (1.0 - (dist / maxDist)) * 100.0));
+            if(prox > highestProximity) highestProximity = prox;
+
             if(current_ask <= m_gaps[i].price_upper && current_ask >= m_gaps[i].price_lower) {
-                signal.hasSignal = true;
-                signal.orderType = ORDER_TYPE_BUY;
-                signal.tierLevel = (int)tier;      
-                signal.entryPrice = current_ask;   
+                signal.hasSignal    = true;
+                signal.orderType    = ORDER_TYPE_BUY;
+                signal.tierLevel    = (int)tier;      
+                signal.entryPrice   = current_ask;   
+                signal.proximityPct = 100.0;
+                signal.direction    = "BUY";
                 
                 signal.stopLoss = m_gaps[i].price_lower - (tick_size * Inp_Tempest_SL_Buffer);
                 double sl_dist = MathAbs(current_ask - signal.stopLoss);
@@ -285,11 +296,19 @@ EngineSignal CEngine_Tempest::Evaluate() {
             }
         }
         else if(m_gaps[i].state == GAP_IFVG_BEARISH) {
+            activeBias = "SELL";
+            double dist = MathMax(0.0, m_gaps[i].price_lower - current_bid);
+            double maxDist = 5.0; // 5.0 pips en Oro
+            double prox = MathMax(0.0, MathMin(99.0, (1.0 - (dist / maxDist)) * 100.0));
+            if(prox > highestProximity) highestProximity = prox;
+
             if(current_bid >= m_gaps[i].price_lower && current_bid <= m_gaps[i].price_upper) {
-                signal.hasSignal = true;
-                signal.orderType = ORDER_TYPE_SELL;
-                signal.tierLevel = (int)tier;
-                signal.entryPrice = current_bid;
+                signal.hasSignal    = true;
+                signal.orderType    = ORDER_TYPE_SELL;
+                signal.tierLevel    = (int)tier;
+                signal.entryPrice   = current_bid;
+                signal.proximityPct = 100.0;
+                signal.direction    = "SELL";
                 
                 signal.stopLoss = m_gaps[i].price_upper + (tick_size * Inp_Tempest_SL_Buffer);
                 double sl_dist = MathAbs(signal.stopLoss - current_bid);
@@ -309,6 +328,9 @@ EngineSignal CEngine_Tempest::Evaluate() {
             }
         }
     }
+
+    signal.proximityPct = NormalizeDouble(highestProximity, 0);
+    signal.direction    = activeBias;
     return signal;
 }
 
