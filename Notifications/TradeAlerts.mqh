@@ -51,7 +51,14 @@ public:
         );
 
         Print(msg);
-        if(enablePush) SendNotification(msg);
+
+        // 2. Notificación PUSH compacta (< 200 caracteres) para el móvil
+        if(enablePush)
+        {
+            string pushMsg = StringFormat("🚀 %s v%s Inicializado\nSímbolo: %s\nBalance: $%.2f USD\nEquidad: $%.2f USD\nEstado: OPERATIVO 🟢",
+                                          BOT_NAME, BOT_VERSION, _Symbol, balance, equity);
+            SendNotification(pushMsg);
+        }
     }
 
     //------------------------------------------------------------------
@@ -96,7 +103,14 @@ public:
 
         Print(msg);
         if(enableAlerts) Alert(msg);
-        if(enablePush)   SendNotification(msg);
+
+        // Notificación PUSH compacta (< 200 caracteres) para el móvil
+        if(enablePush)
+        {
+            string pushMsg = StringFormat("🚀 [%s] APERTURA %s\nSímbolo: %s | Lote: %.2f\nPrecio: %.2f | SL: %.2f | TP: %.2f",
+                                          BOT_NAME, (type == ORDER_TYPE_BUY ? "BUY" : "SELL"), _Symbol, lot, price, sl, tp);
+            SendNotification(pushMsg);
+        }
     }
 
     //------------------------------------------------------------------

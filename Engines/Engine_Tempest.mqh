@@ -152,9 +152,15 @@ void CEngine_Tempest::DetectNewFVGs(ENUM_TIMEFRAMES tf) {
     }
 }
 
-void CEngine_Tempest::UpdateGapStates(ENUM_TIMEFRAMES tf) {
+void CEngine_Tempest::UpdateGapStates(ENUM_TIMEFRAMES tf)
+{
+    int totalGaps = ArraySize(m_gaps);
+    if(totalGaps == 0) return;
+
     double last_close = iClose(_Symbol, tf, 1);
-    for(int i = 0; i < ArraySize(m_gaps); i++) {
+    for(int i = 0; i < totalGaps; i++) 
+    {
+        if(i >= ArraySize(m_gaps)) break; // Resguardo contra desbordamiento
         if(!m_gaps[i].is_active || m_gaps[i].timeframe != tf) continue;
         
         m_gaps[i].bars_lifetime++;
@@ -208,17 +214,26 @@ double CEngine_Tempest::CalculateLotSize(double sl_dist, ENUM_SETUP_TIER tier) {
     return normalized_lot;
 }
 
-void CEngine_Tempest::CleanMemory() {
-    int count = ArraySize(m_gaps);
-    for(int i = count - 1; i >= 0; i--) {
-        if(!m_gaps[i].is_active) {
-            for(int j = i; j < count - 1; j++) {
-                m_gaps[j] = m_gaps[j+1];
-            }
-            count--;
+void CEngine_Tempest::CleanMemory()
+{
+    int total = ArraySize(m_gaps);
+    if(total == 0) return;
+
+    SGapStructure tempGaps[];
+    int activeCount = 0;
+
+    for(int i = 0; i < total; i++)
+    {
+        if(m_gaps[i].is_active)
+        {
+            ArrayResize(tempGaps, activeCount + 1);
+            tempGaps[activeCount] = m_gaps[i];
+            activeCount++;
         }
     }
-    ArrayResize(m_gaps, count);
+
+    ArrayCopy(m_gaps, tempGaps);
+    ArrayFree(tempGaps);
 }
 
 bool CEngine_Tempest::CheckOpenPositions() {
