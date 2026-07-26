@@ -41,6 +41,7 @@ private:
 
     bool              IsNewBar(ENUM_TIMEFRAMES tf, int index);
     void              DetectNewFVGs(ENUM_TIMEFRAMES tf);
+    void              ScanHistoricalGaps();
     void              UpdateGapStates(ENUM_TIMEFRAMES tf);
     int               GetMacroTrend(ENUM_TIMEFRAMES macro_tf);
     void              CleanMemory();
@@ -88,6 +89,10 @@ bool CEngine_Tempest::Init(int engineId, string name) {
         Print("TEMPEST MK5: Error cargando EMA 200");
         return false;
     }
+
+    // Ejecutar escaneo histórico de arranque
+    ScanHistoricalGaps();
+
     Print("Motor TEMPEST MK5 Iniciado. ID: ", m_engineId);
     return true;
 }
@@ -120,6 +125,65 @@ int CEngine_Tempest::GetMacroTrend(ENUM_TIMEFRAMES macro_tf) {
     if(is_price_above && is_slope_up) return 1;
     if(is_price_below && is_slope_down) return -1;
     return 0;
+}
+
+void CEngine_Tempest::ScanHistoricalGaps()
+{
+    for(int t = 0; t < 5; t++)
+    {
+        ENUM_TIMEFRAMES tf = m_tracked_tfs[t];
+        int lookback = 50; // Escanear las últimas 50 velas al iniciar
+        
+        for(int bar = lookback; bar >= 1; bar--)
+        {
+            double candleA_high = iHigh(_Symbol, tf, bar + 2);
+            double candleA_low  = iLow(_Symbol, tf, bar + 2);
+            double candleC_high = iHigh(_Symbol, tf, bar);
+            double candleC_low  = iLow(_Symbol, tf, bar);
+
+            bool isBullishFVG = (candleA_high < candleC_low);
+            bool isBearishFVG = (candleA_low > candleC_high);
+
+            if(isBullishFVG || isBearishFVG)
+            {
+                int size = ArraySize(m_gaps);
+                int newIdx = size;
+                if(ArrayResize(m_gaps, size + 1) > 0)
+                {
+                    m_gaps[newIdx].id = ++m_gap_counter;
+                    m_gaps[newIdx].timeframe = tf;
+                    m_gaps[newIdx].time_formation = iTime(_Symbol, tf, bar + 1);
+                    m_gaps[newIdx].is_active = true;
+                    m_gaps[newIdx].bars_lifetime = lookback - bar;
+
+                    if(isBullishFVG)
+                    {
+                        m_gaps[newIdx].state = GAP_FVG_BULLISH;
+                        m_gaps[newIdx].price_upper = candleC_low;
+                        m_gaps[newIdx].price_lower = candleA_high;
+                    }
+                    else
+                    {
+                        m_gaps[newIdx].state = GAP_FVG_BEARISH;
+                        m_gaps[newIdx].price_upper = candleA_low;
+                        m_gaps[newIdx].price_lower = candleC_high;
+                    }
+
+                    // Verificar si en velas posteriores este FVG se invirtió a iFVG
+                    double last_close = iClose(_Symbol, tf, bar);
+                    if(m_gaps[newIdx].state == GAP_FVG_BEARISH && last_close > m_gaps[newIdx].price_upper)
+                    {
+                        m_gaps[newIdx].state = GAP_IFVG_BULLISH;
+                    }
+                    else if(m_gaps[newIdx].state == GAP_FVG_BULLISH && last_close < m_gaps[newIdx].price_lower)
+                    {
+                        m_gaps[newIdx].state = GAP_IFVG_BEARISH;
+                    }
+                }
+            }
+        }
+    }
+    PrintFormat("TEMPEST MK5 [WARM-UP]: Escaneo histórico completado. %d estructuras cargadas en memoria.", ArraySize(m_gaps));
 }
 
 void CEngine_Tempest::DetectNewFVGs(ENUM_TIMEFRAMES tf) {
@@ -280,75 +344,77 @@ EngineSignal CEngine_Tempest::Evaluate() {
     double highestProximity = 0.0;
     string activeBias = "NONE";
 
-    for(int i = 0; i < ArraySize(m_gaps); i++) {
+    for(int i = 0; i < ArraySize(m_gaps); i++) 
+    {
         if(!m_gaps[i].is_active) continue;
-
+        
+        // Calcular la distancia del precio a los límites de la zona
+        if(m_gaps[i].state == GAP_IFVG_BULLISH || m_gaps[i].state == GAP_FVG_BULLISH) 
+        {
+            double dist = MathAbs(current_ask - m_gaps[i].price_upper);
+            double maxDist = 10.0; // Rango de tolerancia de 10 pips en Oro
+            double prox = MathMax(0.0, MathMin(99.0, (1.0 - (dist / maxDist)) * 100.0));
+            if(prox > highestProximity) {
+                highestProximity = prox;
+                activeBias = "BUY";
+            }
+        }
+        else if(m_gaps[i].state == GAP_IFVG_BEARISH || m_gaps[i].state == GAP_FVG_BEARISH) 
+        {
+            double dist = MathAbs(current_bid - m_gaps[i].price_lower);
+            double maxDist = 10.0; // Rango de tolerancia de 10 pips en Oro
+            double prox = MathMax(0.0, MathMin(99.0, (1.0 - (dist / maxDist)) * 100.0));
+            if(prox > highestProximity) {
+                highestProximity = prox;
+                activeBias = "SELL";
+            }
+        }
+        
+        // Disparo de entrada estricto únicamente para iFVG calificados por Tier
         ENUM_SETUP_TIER tier = EvaluateTier(m_gaps[i], cached_macro_trend);
         if(tier == TIER_NONE) continue;
 
-        if(m_gaps[i].state == GAP_IFVG_BULLISH) {
-            activeBias = "BUY";
-            double dist = MathMax(0.0, current_ask - m_gaps[i].price_upper);
-            double maxDist = 5.0; // 5.0 pips en Oro
-            double prox = MathMax(0.0, MathMin(99.0, (1.0 - (dist / maxDist)) * 100.0));
-            if(prox > highestProximity) highestProximity = prox;
-
-            if(current_ask <= m_gaps[i].price_upper && current_ask >= m_gaps[i].price_lower) {
-                signal.hasSignal    = true;
-                signal.orderType    = ORDER_TYPE_BUY;
-                signal.tierLevel    = (int)tier;      
-                signal.entryPrice   = current_ask;   
-                signal.proximityPct = 100.0;
-                signal.direction    = "BUY";
-                
-                signal.stopLoss = m_gaps[i].price_lower - (tick_size * Inp_Tempest_SL_Buffer);
-                double sl_dist = MathAbs(current_ask - signal.stopLoss);
-                
-                if(sl_dist < min_stop_dist) { 
-                    sl_dist = min_stop_dist; 
-                    signal.stopLoss = current_ask - sl_dist; 
-                }
-                
-                double tp_dist = sl_dist * Inp_Tempest_RR;
-                if(tp_dist < min_stop_dist) tp_dist = min_stop_dist;
-                signal.takeProfit = current_ask + tp_dist;
-                
-                signal.baseLot = CalculateLotSize(sl_dist, tier);
-                m_gaps[i].is_active = false; 
-                return signal;
-            }
+        if(m_gaps[i].state == GAP_IFVG_BULLISH && current_ask <= m_gaps[i].price_upper && current_ask >= m_gaps[i].price_lower)
+        {
+            signal.hasSignal    = true;
+            signal.orderType    = ORDER_TYPE_BUY;
+            signal.tierLevel    = (int)tier;
+            signal.entryPrice   = current_ask;
+            signal.proximityPct = 100.0;
+            signal.direction    = "BUY";
+            
+            signal.stopLoss = m_gaps[i].price_lower - (tick_size * Inp_Tempest_SL_Buffer);
+            double sl_dist = MathAbs(current_ask - signal.stopLoss);
+            if(sl_dist < min_stop_dist) { sl_dist = min_stop_dist; signal.stopLoss = current_ask - sl_dist; }
+            
+            double tp_dist = sl_dist * Inp_Tempest_RR;
+            if(tp_dist < min_stop_dist) tp_dist = min_stop_dist;
+            signal.takeProfit = current_ask + tp_dist;
+            
+            signal.baseLot = CalculateLotSize(sl_dist, tier);
+            m_gaps[i].is_active = false;
+            return signal;
         }
-        else if(m_gaps[i].state == GAP_IFVG_BEARISH) {
-            activeBias = "SELL";
-            double dist = MathMax(0.0, m_gaps[i].price_lower - current_bid);
-            double maxDist = 5.0; // 5.0 pips en Oro
-            double prox = MathMax(0.0, MathMin(99.0, (1.0 - (dist / maxDist)) * 100.0));
-            if(prox > highestProximity) highestProximity = prox;
-
-            if(current_bid >= m_gaps[i].price_lower && current_bid <= m_gaps[i].price_upper) {
-                signal.hasSignal    = true;
-                signal.orderType    = ORDER_TYPE_SELL;
-                signal.tierLevel    = (int)tier;
-                signal.entryPrice   = current_bid;
-                signal.proximityPct = 100.0;
-                signal.direction    = "SELL";
-                
-                signal.stopLoss = m_gaps[i].price_upper + (tick_size * Inp_Tempest_SL_Buffer);
-                double sl_dist = MathAbs(signal.stopLoss - current_bid);
-                
-                if(sl_dist < min_stop_dist) { 
-                    sl_dist = min_stop_dist; 
-                    signal.stopLoss = current_bid + sl_dist; 
-                }
-                
-                double tp_dist = sl_dist * Inp_Tempest_RR;
-                if(tp_dist < min_stop_dist) tp_dist = min_stop_dist;
-                signal.takeProfit = current_bid - tp_dist;
-                
-                signal.baseLot = CalculateLotSize(sl_dist, tier);
-                m_gaps[i].is_active = false;
-                return signal;
-            }
+        else if(m_gaps[i].state == GAP_IFVG_BEARISH && current_bid >= m_gaps[i].price_lower && current_bid <= m_gaps[i].price_upper)
+        {
+            signal.hasSignal    = true;
+            signal.orderType    = ORDER_TYPE_SELL;
+            signal.tierLevel    = (int)tier;
+            signal.entryPrice   = current_bid;
+            signal.proximityPct = 100.0;
+            signal.direction    = "SELL";
+            
+            signal.stopLoss = m_gaps[i].price_upper + (tick_size * Inp_Tempest_SL_Buffer);
+            double sl_dist = MathAbs(signal.stopLoss - current_bid);
+            if(sl_dist < min_stop_dist) { sl_dist = min_stop_dist; signal.stopLoss = current_bid + sl_dist; }
+            
+            double tp_dist = sl_dist * Inp_Tempest_RR;
+            if(tp_dist < min_stop_dist) tp_dist = min_stop_dist;
+            signal.takeProfit = current_bid - tp_dist;
+            
+            signal.baseLot = CalculateLotSize(sl_dist, tier);
+            m_gaps[i].is_active = false;
+            return signal;
         }
     }
 
