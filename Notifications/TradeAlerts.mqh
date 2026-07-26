@@ -52,16 +52,22 @@ public:
         );
         Print(msg);
 
-        // 2. Formato Push estricto (< 200 caracteres) con comillas y variables correctamente separadas
+        // 2. Formato Push estricto (< 200 caracteres) con comillas y variables bien separadas
         if(enablePush)
         {
             string pushMsg = StringFormat(
                 "🚀 %s v%s Inicializado\nSímbolo: %s\nBalance: $%.2f USD\nEquidad: $%.2f USD\nEstado: OPERATIVO 🟢",
                 BOT_NAME, BOT_VERSION, _Symbol, balance, equity
             );
+            
+            ResetLastError();
             if(!SendNotification(pushMsg))
             {
-                PrintFormat("⚠️ [%s PUSH ERROR]: Falló el envío de notificación Push. Código de error MT5: %d", BOT_NAME, GetLastError());
+                PrintFormat("❌ [%s PUSH ERROR]: Falló el envío de notificación Push. Código de error MT5: %d", BOT_NAME, GetLastError());
+            }
+            else
+            {
+                PrintFormat("📱 [%s PUSH EXITO]: Notificación de inicio enviada correctamente al teléfono.", BOT_NAME);
             }
         }
     }

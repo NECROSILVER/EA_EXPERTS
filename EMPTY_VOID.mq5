@@ -47,7 +47,7 @@ input int      Inp_Tempest_SL_Buffer   = 20;   // Margen de ticks para el Stop L
 
 input group "=== NOTIFICACIONES Y ALERTAS ==="
 input bool     InpEnableAlerts         = true;      // Habilitar Alertas Visuales en Pantalla
-input bool     InpEnablePush           = false;     // Habilitar Notificaciones Push MT5
+input bool     InpEnablePush           = true;      // Habilitar Notificaciones Push MT5 (Por defecto TRUE)
 
 // --- INCLUSIÓN DEL MOTOR TEMPEST MK5 ---
 #include <EMPTY_VOID/Engines/Engine_Tempest.mqh>
