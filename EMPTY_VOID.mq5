@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                                   EMPTY_VOID.mq5 |
-//|                     EMPTY_VOID DESTRUCTIVE_CORE v2.1.0           |
+//|                     EMPTY_VOID DESTRUCTIVE_CORE v2.1.1           |
 //|                                     OPERADOR : NECRO_SILVER      |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2026, EMPTY_VOID CORE | NECRO_SILVER"
 #property link      "https://www.mql5.com"
-#property version   "2.100"
+#property version   "2.110"
 #property strict
-#property description "  EMPTY_VOID DESTRUCTIVE_CORE v2.1.0"
+#property description "  EMPTY_VOID DESTRUCTIVE_CORE v2.1.1"
 #property description "  OPERADOR: NECRO_SILVER"
 #property description "  MOTOR INTEGRADO: TEMPEST MK5 (IFVG & Multi-TF)"
 
@@ -133,7 +133,7 @@ int OnInit()
 
     // Punto 4: Escritura de Memoria Persistente CVoidState
     CVoidState::SetState("LastInitTime", (double)TimeCurrent());
-    CVoidState::SetState("BotVersion", 2.1);
+    CVoidState::SetState("BotVersion", 2.11);
     if(!CVoidState::HasState("LastInitTime")) isHealthOk = false;
 
     // Disparo de Alerta de Arranque ÚNICAMENTE si las 4 puertas de salud pasaron:
