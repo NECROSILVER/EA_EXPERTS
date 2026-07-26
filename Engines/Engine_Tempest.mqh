@@ -232,7 +232,12 @@ void CEngine_Tempest::CleanMemory()
         }
     }
 
-    ArrayCopy(m_gaps, tempGaps);
+    // Redimensionar m_gaps al tamaño activo real antes de copiar
+    ArrayResize(m_gaps, activeCount);
+    if(activeCount > 0)
+    {
+        ArrayCopy(m_gaps, tempGaps);
+    }
     ArrayFree(tempGaps);
 }
 

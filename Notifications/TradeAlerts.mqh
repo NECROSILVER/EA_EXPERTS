@@ -29,6 +29,7 @@ public:
         bool enablePush = false
     )
     {
+        // 1. Formato extendido para el Journal de MT5
         string msg = StringFormat(
             "🚀 [%s] │ SISTEMA INICIALIZADO\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -49,14 +50,15 @@ public:
             BOT_NAME, BOT_NAME, BOT_VERSION, _Symbol,
             balance, equity, drawdown, newsSummary
         );
-
         Print(msg);
 
-        // 2. Notificación PUSH compacta (< 200 caracteres) para el móvil
+        // 2. Formato Push estricto (< 200 caracteres) con comillas y variables correctamente separadas
         if(enablePush)
         {
-            string pushMsg = StringFormat("🚀 %s v%s Inicializado\nSímbolo: %s\nBalance: $%.2f USD\nEquidad: $%.2f USD\nEstado: OPERATIVO 🟢",
-                                          BOT_NAME, BOT_VERSION, _Symbol, balance, equity);
+            string pushMsg = StringFormat(
+                "🚀 %s v%s Inicializado\nSímbolo: %s\nBalance: $%.2f USD\nEquidad: $%.2f USD\nEstado: OPERATIVO 🟢",
+                BOT_NAME, BOT_VERSION, _Symbol, balance, equity
+            );
             SendNotification(pushMsg);
         }
     }
