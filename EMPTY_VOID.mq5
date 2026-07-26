@@ -7,9 +7,9 @@
 #property link      "https://www.mql5.com"
 #property version   "2.000"
 #property strict
-#property description "🏦 EMPTY_VOID DESTRUCTIVE_CORE v2.0.0"
-#property description "👤 OPERADOR: NECRO_SILVER"
-#property description "⚡ MOTOR INTEGRADO: TEMPEST MK5 (IFVG & Multi-TF)"
+#property description "  EMPTY_VOID DESTRUCTIVE_CORE v2.0.0"
+#property description "  OPERADOR: NECRO_SILVER"
+#property description "  MOTOR INTEGRADO: TEMPEST MK5 (IFVG & Multi-TF)"
 
 #include <Trade/Trade.mqh>
 #include <EMPTY_VOID/Core/Config.mqh>
@@ -41,9 +41,9 @@ input double   InpBsMinProb            = 40.0;      // Probabilidad Delta Mínim
 input double   InpBsMaxSpreadMult      = 2.0;       // Multiplicador máximo de spread permitido
 
 input group "=== MÓDULO MOTOR TEMPEST MK5 ==="
-sinput string  tempest_settings      = "--- Ajustes Motor TEMPEST MK5 ---";
-input double   Inp_Tempest_RR        = 2.0;  // Relación Riesgo:Beneficio (Ej. 2.0 = 1:2)
-input int      Inp_Tempest_SL_Buffer = 20;   // Margen de ticks para el Stop Loss
+sinput string  tempest_settings        = "--- Ajustes Motor TEMPEST MK5 ---";
+input double   Inp_Tempest_RR          = 2.0;  // Relación Riesgo:Beneficio (Ej. 2.0 = 1:2)
+input int      Inp_Tempest_SL_Buffer   = 20;   // Margen de ticks para el Stop Loss
 
 input group "=== NOTIFICACIONES Y ALERTAS ==="
 input bool     InpEnableAlerts         = true;      // Habilitar Alertas Visuales en Pantalla
@@ -68,7 +68,6 @@ void CloseAllBotPositions(string reason)
 {
     int total = PositionsTotal();
     int closedCount = 0;
-
     for(int i = total - 1; i >= 0; i--)
     {
         ulong ticket = PositionGetTicket(i);
@@ -77,7 +76,7 @@ void CloseAllBotPositions(string reason)
             string posSym  = PositionGetString(POSITION_SYMBOL);
             ulong posMagic = (ulong)PositionGetInteger(POSITION_MAGIC);
             string posComm = PositionGetString(POSITION_COMMENT);
-
+            
             if(posSym == _Symbol && (CMagicNumberManager::IsEVTrade(posMagic) || StringFind(posComm, "EV_") >= 0))
             {
                 if(g_trade.PositionClose(ticket))
@@ -87,7 +86,7 @@ void CloseAllBotPositions(string reason)
             }
         }
     }
-
+    
     if(closedCount > 0)
     {
         PrintFormat("⚠️ [%s KILL-SWITCH]: Se han cerrado masivamente %d posiciones activas. Razón: %s", BOT_NAME, closedCount, reason);
@@ -103,7 +102,7 @@ int OnInit()
     string sym = _Symbol;
     if(StringFind(sym, "XAU") < 0 && StringFind(sym, "GOLD") < 0 && StringFind(sym, "Gold") < 0)
     {
-        PrintFormat("⚠️ [%s INICIALIZACIÓN FALLIDA]: El símbolo activo '%s' no es ORO (XAUUSD). Este bot está optimizado exclusivamente para %s.", BOT_NAME, sym, BOT_SYMBOL);
+        PrintFormat("❌ [%s INICIALIZACIÓN FALLIDA]: El símbolo activo '%s' no es ORO (XAUUSD). Este bot está optimizado exclusivamente para %s.", BOT_NAME, sym, BOT_SYMBOL);
         return(INIT_FAILED);
     }
 
@@ -124,7 +123,7 @@ int OnInit()
     // 6. Inicializar Dashboard Visual Cyberpunk Neón (HUD)
     CVoidDashboard::Init(_Symbol, 0, 15, 25);
 
-    // 7. Iniciar Temporizador a 1 segundo para refrescar el Dashboard continuamente (incluso con mercado cerrado)
+    // 7. Iniciar Temporizador a 1 segundo para refrescar el Dashboard
     EventSetTimer(1);
 
     // 8. Imprimir Reporte Consolidado Banner de Inicialización en el Journal de MT5
@@ -133,13 +132,12 @@ int OnInit()
     // 9. Emitir Notificación de Inicialización del Sistema
     CVoidTradeAlerts::NotifyInfo(StringFormat("%s v%s Inicializado en %s.", BOT_NAME, BOT_VERSION, sym));
 
-    // --- INSERCIÓN TEMPEST MK5 ---
+    // --- INSTANCIACIÓN TEMPEST MK5 ---
     EngineTempest = new CEngine_Tempest();
     if(!EngineTempest.Init(TEMPEST_ENGINE_ID, "TMPST_MK5")) {
         Print("Error inicializando Motor TEMPEST MK5");
         return INIT_FAILED;
     }
-    // -----------------------------
 
     return(INIT_SUCCEEDED);
 }
@@ -151,23 +149,23 @@ void OnDeinit(const int reason)
 {
     EventKillTimer();
     CVoidDashboard::Destroy();
-
+    
     if(CheckPointer(EngineTempest) != POINTER_INVALID) {
         EngineTempest.OnDeinit();
         delete EngineTempest;
     }
-
+    
     PrintFormat("🧹 [%s]: Dashboard destruido, temporizador detenido y recursos liberados.", BOT_NAME);
 }
 
 //+------------------------------------------------------------------+
-//| Evento OnTimer: Actualiza el Dashboard cada 1s sin recargar OnTick|
+//| Evento OnTimer: Actualiza el Dashboard cada 1s                  |
 //+------------------------------------------------------------------+
 void OnTimer()
 {
     double currentSpread = (double)SymbolInfoInteger(_Symbol, SYMBOL_SPREAD);
     bool isSpreadSafe = CVoidSecurityHub::CheckSpreadSafety(currentSpread, g_emaSpread, g_expansionStart, InpBsMaxSpreadMult);
-
+    
     CVoidDashboard::Update(currentSpread, g_emaSpread, isSpreadSafe, _Symbol);
     ChartRedraw(0);
 }
@@ -177,7 +175,7 @@ void OnTimer()
 //+------------------------------------------------------------------+
 void OnTick()
 {
-    // 0. GESTOR DE EMERGENCIA (KILL-SWITCH MANIFEST)
+    // 0. GESTOR DE EMERGENCIA (KILL-SWITCH)
     if(InpEmergencyStop)
     {
         CloseAllBotPositions("INTERRUPTOR DE EMERGENCIA (KILL-SWITCH) ACTIVADO POR EL USUARIO");
@@ -188,39 +186,85 @@ void OnTick()
     // 1. Monitoreo y Gobernador de Pérdida Diaria (DrawdownGuard)
     if(CVoidDrawdownGuard::CheckDailyLossLimit(InpMaxDailyLossPct, _Symbol))
     {
-        // Bloqueo activo por superación de drawdown diario máximo
-        return;
+        return; // Bloqueo por Drawdown Diario Máximo
     }
 
-    // 2. Monitoreo y actualización del Escudo de Spread vía VoidSecurityHub
+    // 2. Monitoreo y actualización del Escudo de Spread
     if(InpBsEnabled)
     {
         double currentSpread = (double)SymbolInfoInteger(_Symbol, SYMBOL_SPREAD);
         bool isSafe = CVoidSecurityHub::CheckSpreadSafety(currentSpread, g_emaSpread, g_expansionStart, InpBsMaxSpreadMult);
-
         if(!isSafe)
         {
-            // Bloqueo de seguridad defensivo por iliquidez o salto anómalo de spread
-            return;
+            return; // Bloqueo defensivo por dilatación anómala de spread
         }
     }
 
-    // --- INSERCIÓN TEMPEST MK5 ---
+    // 3. EVALUACIÓN Y EJECUCIÓN DEL MOTOR TEMPEST MK5
     EngineSignal signal = EngineTempest.Evaluate();
-    
-    if(signal.hasSignal) {
+
+    if(signal.hasSignal) 
+    {
+        double finalLot = signal.baseLot;
+        int assignedTier = signal.tierLevel;
+
+        // A. Filtro Cuantitativo de Seguridad Black-Scholes MK13
+        if(InpBsEnabled)
+        {
+            bool isAllowed = CVoidSecurityHub::IsEntryAllowed(
+                signal.orderType,
+                signal.entryPrice,
+                signal.takeProfit,
+                InpBsAnnualVol,
+                InpBsTargetHours,
+                InpBsMinProb,
+                signal.baseLot,
+                finalLot,
+                assignedTier,
+                _Symbol
+            );
+
+            if(!isAllowed)
+            {
+                PrintFormat("🛡️ [%s - SECURITY HUB]: Entrada de TEMPEST rechazada por el filtro Black-Scholes MK13.", BOT_NAME);
+                return;
+            }
+        }
+
+        // B. Asignar Magic Number dinámico y Comment Tag
         ulong magic = CMagicNumberManager::GetMagicNumber(TEMPEST_ENGINE_ID);
         g_trade.SetExpertMagicNumber(magic);
-        
-        string comment_tag = CCommentTagBuilder::BuildTag(TEMPEST_ENGINE_ID, signal.tierLevel, signal.gridLevel);
-        
-        if(signal.orderType == ORDER_TYPE_BUY) {
-            g_trade.Buy(signal.baseLot, _Symbol, 0, signal.stopLoss, signal.takeProfit, comment_tag);
-        } 
-        else if(signal.orderType == ORDER_TYPE_SELL) {
-            g_trade.Sell(signal.baseLot, _Symbol, 0, signal.stopLoss, signal.takeProfit, comment_tag);
+
+        string comment_tag = CCommentTagBuilder::BuildTag(TEMPEST_ENGINE_ID, assignedTier, signal.gridLevel);
+
+        // C. Ejecución de la orden
+        bool tradeSuccess = false;
+        if(signal.orderType == ORDER_TYPE_BUY) 
+        {
+            tradeSuccess = g_trade.Buy(finalLot, _Symbol, 0, signal.stopLoss, signal.takeProfit, comment_tag);
+        }
+        else if(signal.orderType == ORDER_TYPE_SELL) 
+        {
+            tradeSuccess = g_trade.Sell(finalLot, _Symbol, 0, signal.stopLoss, signal.takeProfit, comment_tag);
+        }
+
+        // D. Emisión de Notificación y Alerta de Entrada
+        if(tradeSuccess)
+        {
+            CVoidTradeAlerts::NotifyTradeOpen(
+                TEMPEST_ENGINE_ID,
+                assignedTier,
+                signal.gridLevel,
+                signal.orderType,
+                finalLot,
+                signal.entryPrice,
+                signal.stopLoss,
+                signal.takeProfit,
+                InpEnableAlerts,
+                InpEnablePush,
+                _Symbol
+            );
         }
     }
-    // -----------------------------
 }
 //+------------------------------------------------------------------+
