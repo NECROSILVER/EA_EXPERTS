@@ -106,7 +106,9 @@ bool CEngine_Tempest::IsNewBar(ENUM_TIMEFRAMES tf, int index) {
 }
 
 int CEngine_Tempest::GetMacroTrend(ENUM_TIMEFRAMES macro_tf) {
-    double ema_values[2];
+    double ema_values[];
+    ArrayResize(ema_values, 2);
+    ArraySetAsSeries(ema_values, true);
     if(CopyBuffer(m_ema200_handle, 0, 1, 2, ema_values) < 2) return 0; 
     
     double last_close = iClose(_Symbol, macro_tf, 1);
