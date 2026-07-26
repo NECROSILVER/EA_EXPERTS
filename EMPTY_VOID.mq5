@@ -261,8 +261,7 @@ void OnTick()
                 signal.stopLoss,
                 signal.takeProfit,
                 InpEnableAlerts,
-                InpEnablePush,
-                _Symbol
+                InpEnablePush
             );
         }
     }
