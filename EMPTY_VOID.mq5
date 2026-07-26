@@ -178,9 +178,38 @@ void OnTimer()
 {
     double currentSpread = (double)SymbolInfoInteger(_Symbol, SYMBOL_SPREAD);
     bool isSpreadSafe = CVoidSecurityHub::CheckSpreadSafety(currentSpread, g_emaSpread, g_expansionStart, InpBsMaxSpreadMult);
+
+    EngineSignal currentSignal;
+    if(CheckPointer(EngineTempest) != POINTER_INVALID)
+    {
+        currentSignal = EngineTempest.Evaluate();
+    }
+
+    // Cálculo de telemetría Black-Scholes MK13 para el gráfico
+    double bsCurrentProb = 0.0;
+    int bsTier = 0;
+    if(currentSignal.hasSignal || currentSignal.takeProfit > 0.0)
+    {
+        double spot = (currentSignal.orderType == ORDER_TYPE_BUY) ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+        CBlackScholesMK13::CalculateBSProbabilityToTarget(spot, currentSignal.takeProfit, InpBsTargetHours, InpBsAnnualVol, bsCurrentProb);
+        if(currentSignal.orderType == ORDER_TYPE_SELL) bsCurrentProb = 100.0 - bsCurrentProb;
+        bsTier = CVoidSecurityHub::GetTierFromProbability(bsCurrentProb);
+    }
+
+    CVoidDashboard::Update(
+        currentSpread, 
+        g_emaSpread, 
+        isSpreadSafe, 
+        _Symbol, 
+        currentSignal.proximityPct, 
+        currentSignal.direction,
+        InpBsAnnualVol,
+        InpBsTargetHours,
+        InpBsMinProb,
+        bsCurrentProb,
+        bsTier
+    );
     
-    EngineSignal currentSignal = EngineTempest.Evaluate();
-    CVoidDashboard::Update(currentSpread, g_emaSpread, isSpreadSafe, _Symbol, currentSignal.proximityPct, currentSignal.direction);
     ChartRedraw(0);
 }
 

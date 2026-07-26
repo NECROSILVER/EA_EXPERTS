@@ -111,7 +111,12 @@ public:
         bool isSpreadSafe = true, 
         string symbol = NULL,
         double tempestProximity = 0.0,
-        string tempestDirection = "NONE"
+        string tempestDirection = "NONE",
+        double bsVol = 16.0,
+        double bsHours = 4.0,
+        double bsMinProb = 40.0,
+        double bsCurrentProb = 0.0,
+        int bsTier = 0
     )
     {
         string sym = (symbol == NULL || symbol == "") ? _Symbol : symbol;
@@ -183,18 +188,27 @@ public:
         CreateOrUpdateLabel("SpreadShield", spreadStr, x + 10, y, 8, true, spreadClr, corner);
         y += lineHeight;
 
-        string bsStatusStr = "Modelo Black-Scholes MK13: [ACTIVO & OPERATIVO]";
-        CreateOrUpdateLabel("BSStatus", bsStatusStr, x + 10, y, 8, true, C'0,240,255', corner);
+        // Parámetros de Configuración Black-Scholes MK13
+        string bsConfigStr = StringFormat("BS MK13 Config: Volatilidad: %.1f%% | Horizonte: %.1fh | Mín Req N(d2): %.0f%%", 
+                                          bsVol, bsHours, bsMinProb);
+        CreateOrUpdateLabel("BSConfig", bsConfigStr, x + 10, y, 8, true, C'0,240,255', corner);
+        y += lineHeight;
+
+        // Telemetría en Vivo N(d2) y Tier
+        string bsLiveStr = StringFormat("Telemetría BS : Prob. Actual N(d2): %.1f%% | Tier Calculado: T%d", 
+                                        bsCurrentProb, bsTier);
+        color bsLiveClr = (bsCurrentProb >= bsMinProb) ? C'0,255,140' : C'255,200,0';
+        CreateOrUpdateLabel("BSLive", bsLiveStr, x + 10, y, 8, true, bsLiveClr, corner);
         y += lineHeight;
 
         // Etiqueta del Motor TEMPEST
         string tempestStatusStr = StringFormat("[ ENGINE_TEMPEST_MK5 ]: ACTIVO | PROXIMIDAD: %.0f%% | BIAS: %s", 
-                                                tempestProximity, tempestDirection);
+                                                 tempestProximity, tempestDirection);
         CreateOrUpdateLabel("TempestStatus", tempestStatusStr, x + 10, y, 8, true, C'0,255,140', corner);
         y += lineHeight + 4;
 
         CreateOrUpdateLabel("Div2", "------------------------------------------------------------------------------------------------------------", x, y, 8, false, C'0,200,255', corner);
-        y += lineHeight + 2;
+        y += lineHeight + 2;    y += lineHeight + 2;
 
         // --- SECCIÓN 3: [ CALENDARIO ECONÓMICO Y NOTICIAS ] ---
         CreateOrUpdateLabel("Sec3_Header", "[ 📰 ESCUDO DE NOTICIAS DE ALTO IMPACTO (USD) ]", x, y, 9, true, C'255,0,255', corner);
