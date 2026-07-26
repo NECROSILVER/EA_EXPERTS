@@ -92,9 +92,9 @@ public:
     static bool Init(string symbol = NULL, int corner = 0, int x = 15, int y = 25)
     {
         // 1. Marcos y fondo sólido Cyberpunk
-        CreateOrUpdateRect("FrameOuter", x - 12, y - 12, 660, 360, C'0,240,255', C'0,240,255', 2, corner);
-        CreateOrUpdateRect("FrameInner", x - 10, y - 10, 656, 356, C'255,0,200', C'255,0,200', 1, corner);
-        CreateOrUpdateRect("BG",         x - 8,  y - 8,  652, 352, C'10,2,16',  C'0,200,255', 1, corner);
+        CreateOrUpdateRect("FrameOuter", x - 12, y - 12, 660, 380, C'0,240,255', C'0,240,255', 2, corner);
+        CreateOrUpdateRect("FrameInner", x - 10, y - 10, 656, 376, C'255,0,200', C'255,0,200', 1, corner);
+        CreateOrUpdateRect("BG",         x - 8,  y - 8,  652, 372, C'10,2,16',  C'0,200,255', 1, corner);
 
         // 2. Renderizar contenido inicial
         Update(0.0, 0.0, true, symbol);
@@ -183,6 +183,11 @@ public:
 
         string bsStatusStr = "Modelo Black-Scholes MK13: [ACTIVO & OPERATIVO]";
         CreateOrUpdateLabel("BSStatus", bsStatusStr, x + 10, y, 8, true, C'0,240,255', corner);
+        y += lineHeight;
+
+        // Etiqueta del Motor TEMPEST
+        string tempestStatusStr = "[ ENGINE_TEMPEST_MK5 ]: ACTIVO & ESCANEANDO iFVG";
+        CreateOrUpdateLabel("TempestStatus", tempestStatusStr, x + 10, y, 8, true, C'0,255,140', corner);
         y += lineHeight + 4;
 
         CreateOrUpdateLabel("Div2", "------------------------------------------------------------------------------------------------------------", x, y, 8, false, C'0,200,255', corner);

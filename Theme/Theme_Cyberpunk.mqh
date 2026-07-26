@@ -20,15 +20,17 @@ public:
         // 1. Configurar Modo de Gráfico (Velas Japonesas)
         ChartSetInteger(chartId, CHART_MODE, CHART_CANDLES);
 
-        // 2. Colores Principales (Fondo Negro Puro, Texto Cian Neón)
+        // 1. Color de fondo y texto
         ChartSetInteger(chartId, CHART_COLOR_BACKGROUND, C'0,0,0');       // Negro Puro
         ChartSetInteger(chartId, CHART_COLOR_FOREGROUND, C'0,240,255');   // Cian Neón Texto
 
-        // 3. Velas Alcistas y Bajistas
+        // 2. Bordes y mechas (Outlines)
         ChartSetInteger(chartId, CHART_COLOR_CHART_UP, C'0,229,255');     // Borde Velas Alcistas (Cian)
         ChartSetInteger(chartId, CHART_COLOR_CHART_DOWN, C'180,0,180');   // Borde Velas Bajistas (Magenta)
-        ChartSetInteger(chartId, CHART_COLOR_CANDLE_BULL, C'0,229,255');  // Cuerpo Alcista (Cian)
-        ChartSetInteger(chartId, CHART_COLOR_CANDLE_BEAR, C'180,0,180'); // Cuerpo Bajista (Magenta)
+
+        // 3. Cuerpos "Huecos" (Mismo color que el fondo)
+        ChartSetInteger(chartId, CHART_COLOR_CANDLE_BULL, C'0,0,0');  
+        ChartSetInteger(chartId, CHART_COLOR_CANDLE_BEAR, C'0,0,0'); 
 
         // 4. Barras de Volumen e Indicadores
         ChartSetInteger(chartId, CHART_COLOR_VOLUME, C'0,255,102');       // Verde Neón
