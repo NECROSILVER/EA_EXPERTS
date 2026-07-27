@@ -308,4 +308,58 @@ void OnTick()
         }
     }
 }
+
+//+------------------------------------------------------------------+
+//| TradeTransaction function                                        |
+//+------------------------------------------------------------------+
+void OnTradeTransaction(
+    const MqlTradeTransaction& trans,
+    const MqlTradeRequest& request,
+    const MqlTradeResult& result
+)
+{
+    if(trans.type == TRADE_TRANSACTION_DEAL_ADD)
+    {
+        ulong dealTicket = trans.deal;
+        if(dealTicket > 0 && HistoryDealSelect(dealTicket))
+        {
+            ENUM_DEAL_ENTRY entry = (ENUM_DEAL_ENTRY)HistoryDealGetInteger(dealTicket, DEAL_ENTRY);
+            if(entry == DEAL_ENTRY_OUT || entry == DEAL_ENTRY_INOUT || entry == DEAL_ENTRY_OUT_BY)
+            {
+                string dealSym  = HistoryDealGetString(dealTicket, DEAL_SYMBOL);
+                ulong dealMagic = (ulong)HistoryDealGetInteger(dealTicket, DEAL_MAGIC);
+                string dealComm = HistoryDealGetString(dealTicket, DEAL_COMMENT);
+
+                if(dealSym == _Symbol && (CMagicNumberManager::IsEVTrade(dealMagic) || StringFind(dealComm, "EV_") >= 0))
+                {
+                    double lot         = HistoryDealGetDouble(dealTicket, DEAL_VOLUME);
+                    double realExit    = HistoryDealGetDouble(dealTicket, DEAL_PRICE);
+                    double rawPnL      = HistoryDealGetDouble(dealTicket, DEAL_PROFIT);
+                    double swap        = HistoryDealGetDouble(dealTicket, DEAL_SWAP);
+                    double comm        = HistoryDealGetDouble(dealTicket, DEAL_COMMISSION);
+                    ENUM_ORDER_TYPE type = (ENUM_ORDER_TYPE)HistoryDealGetInteger(dealTicket, DEAL_TYPE);
+
+                    double currentBal = AccountInfoDouble(ACCOUNT_BALANCE);
+                    double prevBal    = currentBal - (rawPnL + swap + comm);
+
+                    CVoidTradeAlerts::NotifyTradeClose(
+                        dealTicket,
+                        dealComm,
+                        type,
+                        lot,
+                        0.0,
+                        realExit,
+                        realExit,
+                        rawPnL,
+                        (swap + comm),
+                        prevBal,
+                        currentBal,
+                        InpEnableAlerts,
+                        InpEnablePush
+                    );
+                }
+            }
+        }
+    }
+}
 //+------------------------------------------------------------------+

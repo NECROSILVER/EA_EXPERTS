@@ -176,10 +176,15 @@ public:
 
         if(enablePush)
         {
+            string pushMsg = StringFormat(
+                "🏁 [%s] CIERRE %s\nTicket: #%I64u | Tag: %s\nPnL Neto: %s$%.2f USD (%+.2f%%)\nBalance: $%.2f USD",
+                BOT_NAME, (type == ORDER_TYPE_BUY ? "BUY" : "SELL"), ticket, tag, pnlSign, netPnL, netPct, currentBalance
+            );
+            
             ResetLastError();
-            if(!SendNotification(msg))
+            if(!SendNotification(pushMsg))
             {
-                PrintFormat("❌ [%s PUSH ERROR]: Error enviando Cierre. Err: %d", BOT_NAME, GetLastError());
+                PrintFormat("❌ [%s PUSH ERROR]: Falló el envío de notificación Push de cierre. Código MT5: %d", BOT_NAME, GetLastError());
             }
         }
     }
