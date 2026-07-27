@@ -1,15 +1,16 @@
 //+------------------------------------------------------------------+
 //|                                                   EMPTY_VOID.mq5 |
-//|                     EMPTY_VOID DESTRUCTIVE_CORE v2.1.1           |
+//|                     EMPTY_VOID DESTRUCTIVE_CORE v2.2.0           |
 //|                                     OPERADOR : NECRO_SILVER      |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2026, EMPTY_VOID CORE | NECRO_SILVER"
 #property link      "https://www.mql5.com"
-#property version   "2.110"
+#property version   "2.20"
 #property strict
-#property description "  EMPTY_VOID DESTRUCTIVE_CORE v2.1.1"
+#property description "  EMPTY_VOID DESTRUCTIVE_CORE v2.2.0"
 #property description "  OPERADOR: NECRO_SILVER"
 #property description "  MOTOR INTEGRADO: TEMPEST MK5 (IFVG & Multi-TF)"
+#property description "  MÓDULO INTEGRADO: SENTINEL MK1 (Escudo Noticias 12H)"
 
 #include <Trade/Trade.mqh>
 #include <EMPTY_VOID/Core/Config.mqh>
@@ -19,12 +20,11 @@
 #include <EMPTY_VOID/Security/BLACK_SCHOLES_MK13.mqh>
 #include <EMPTY_VOID/Security/VoidSecurityHub.mqh>
 #include <EMPTY_VOID/Risk/DrawdownGuard.mqh>
+#include <EMPTY_VOID/Risk/VoidTrailingManager.mqh>
 #include <EMPTY_VOID/Notifications/NewsWatcher.mqh>
 #include <EMPTY_VOID/Notifications/StartupReport.mqh>
 #include <EMPTY_VOID/Notifications/TradeAlerts.mqh>
 #include <EMPTY_VOID/Engines/IEngine.mqh>
-#include <EMPTY_VOID/Risk/DrawdownGuard.mqh>
-#include <EMPTY_VOID/Risk/VoidTrailingManager.mqh>
 #include <EMPTY_VOID/Theme/Theme_Cyberpunk.mqh>
 #include <EMPTY_VOID/ProfitTracker/ProfitTracker.mqh>
 #include <EMPTY_VOID/Engines/Engine_Template.mqh>
@@ -46,6 +46,12 @@ input double   InpBsBEDeltaProb        = 20.0;      // Incremento Relativo N(d2)
 input bool     InpEnableQuantTrailing  = true;      // Habilitar Trailing Stop Volátil 1-Sigma
 input double   InpQuantTrailingAlpha   = 0.35;      // Multiplicador 1-Sigma (Alpha Factor)
 input double   InpTrailingStepPips     = 3.0;       // Paso Mínimo Trailing (Pips Anti-Spam)
+
+input group "=== ESCUDO DE NOTICIAS SENTINEL MK1 (USD) ==="
+input bool     InpNewsEnable           = true;      // Habilitar SENTINEL MK1
+input int      InpNewsPrePauseMins     = 30;        // Minutos Antes de Noticia para Congelar
+input int      InpNewsPostPauseMins    = 30;        // Minutos Después de Noticia para Descongelar
+input int      InpNewsPushAdvanceHours = 12;        // Horas de Anticipación para Alerta Push (12h)
 
 input group "=== MÓDULO MOTOR TEMPEST MK5 ==="
 sinput string  tempest_settings        = "--- Ajustes Motor TEMPEST MK5 ---";
@@ -203,6 +209,13 @@ void OnTimer()
         bsTier = CVoidSecurityHub::GetTierFromProbability(bsCurrentProb);
     }
 
+    CVoidNewsWatcher::ProcessAdvanceNewsPush(InpNewsPushAdvanceHours, InpEnablePush);
+    bool isNewsLockout = InpNewsEnable && CVoidNewsWatcher::IsNewsLockoutActive(InpNewsPrePauseMins, InpNewsPostPauseMins);
+    
+    string nextNewsName = "Sin eventos < 12h";
+    double hoursToNextNews = 99.0;
+    CVoidNewsWatcher::GetNextHighImpactNews(InpNewsPushAdvanceHours, nextNewsName, hoursToNextNews);
+
     CVoidDashboard::Update(
         currentSpread, 
         g_emaSpread, 
@@ -214,7 +227,10 @@ void OnTimer()
         InpBsTargetHours,
         InpBsMinProb,
         bsCurrentProb,
-        bsTier
+        bsTier,
+        isNewsLockout,
+        nextNewsName,
+        hoursToNextNews
     );
     
     ChartRedraw(0);
@@ -237,6 +253,13 @@ void OnTick()
     if(CVoidDrawdownGuard::CheckDailyLossLimit(InpMaxDailyLossPct, _Symbol))
     {
         return; // Bloqueo por Drawdown Diario Máximo
+    }
+
+    // 1.5 Monitoreo y Escudo de Noticias SENTINEL MK1
+    CVoidNewsWatcher::ProcessAdvanceNewsPush(InpNewsPushAdvanceHours, InpEnablePush);
+    if(InpNewsEnable && CVoidNewsWatcher::IsNewsLockoutActive(InpNewsPrePauseMins, InpNewsPostPauseMins))
+    {
+        return; // Bloqueo defensivo preventivo por noticia USD de ALTO impacto (LOCKOUT_NEWS)
     }
 
     // 2. Monitoreo y actualización del Escudo de Spread

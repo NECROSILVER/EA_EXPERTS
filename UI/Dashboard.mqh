@@ -116,7 +116,10 @@ public:
         double bsHours = 4.0,
         double bsMinProb = 40.0,
         double bsCurrentProb = 0.0,
-        int bsTier = 0
+        int bsTier = 0,
+        bool isNewsLockout = false,
+        string nextNewsName = "Sin eventos < 12h",
+        double hoursToNextNews = 99.0
     )
     {
         string sym = (symbol == NULL || symbol == "") ? _Symbol : symbol;
@@ -177,45 +180,40 @@ public:
         CreateOrUpdateLabel("Div1", "------------------------------------------------------------------------------------------------------------", x, y, 8, false, C'0,200,255', corner);
         y += lineHeight + 2;
 
-        // --- SECCIÓN 2: [ ESCUDOS Y SEGURIDAD CUANTITATIVA ] ---
-        CreateOrUpdateLabel("Sec2_Header", "[ 🛡️ ESCUDOS DE SEGURIDAD & BLACK-SCHOLES MK13 ]", x, y, 9, true, C'255,0,255', corner);
+        // --- SECCIÓN 2: MOTORES Y ESCUDOS DE SEGURIDAD ---
+        CreateOrUpdateLabel("Sec2_Header", StringFormat("[ 🛡️ ESCUDOS DE SEGURIDAD & MOTORES CORE v%s ]", BOT_VERSION), x, y, 9, true, C'255,0,255', corner);
         y += lineHeight + 2;
 
-        // Estado del Spread
+        // Telemetría Spread
         color spreadClr = isSpreadSafe ? C'0,255,140' : C'255,60,80';
-        string spreadStateStr = isSpreadSafe ? "SEGURO & OPTIMO" : "EXPANDIDO (PAUSA)";
-        string spreadStr = StringFormat("Escudo Spread: %s (Actual: %.0f | EMA: %.1f)", spreadStateStr, currentSpread, emaSpread);
+        string spreadStr = StringFormat("Escudo Spread : %s (Actual: %.0f | EMA: %.1f)", 
+                                        (isSpreadSafe ? "SEGURO & OPTIMO" : "EXPANDIDO (PAUSA)"), currentSpread, emaSpread);
         CreateOrUpdateLabel("SpreadShield", spreadStr, x + 10, y, 8, true, spreadClr, corner);
         y += lineHeight;
 
-        // Parámetros de Configuración Black-Scholes MK13
-        string bsConfigStr = StringFormat("BS MK13 Config: Volatilidad: %.1f%% | Horizonte: %.1fh | Mín Req N(d2): %.0f%%", 
-                                          bsVol, bsHours, bsMinProb);
-        CreateOrUpdateLabel("BSConfig", bsConfigStr, x + 10, y, 8, true, C'0,240,255', corner);
+        // Telemetría Black-Scholes MK13
+        string bsLiveStr = StringFormat("Telemetría BS : Prob. Actual N(d2): %.1f%% | Tier Calculado: T%d", bsCurrentProb, bsTier);
+        CreateOrUpdateLabel("BSLive", bsLiveStr, x + 10, y, 8, true, (bsCurrentProb >= bsMinProb ? C'0,255,140' : C'255,200,0'), corner);
         y += lineHeight;
 
-        // Telemetría en Vivo N(d2) y Tier
-        string bsLiveStr = StringFormat("Telemetría BS : Prob. Actual N(d2): %.1f%% | Tier Calculado: T%d", 
-                                        bsCurrentProb, bsTier);
-        color bsLiveClr = (bsCurrentProb >= bsMinProb) ? C'0,255,140' : C'255,200,0';
-        CreateOrUpdateLabel("BSLive", bsLiveStr, x + 10, y, 8, true, bsLiveClr, corner);
+        // Motor TEMPEST_MK5
+        string tempestStr = StringFormat("[ TEMPEST_MK5  ] : %s %s | PROX: %.0f%% | BIAS: %s | BS_MK13: ✅",
+                                         (isNewsLockout ? "BLOQUEADO" : "ACTIVO"),
+                                         (isNewsLockout ? "🔴" : "🟢"),
+                                         tempestProximity, tempestDirection);
+        CreateOrUpdateLabel("EngineTempest", tempestStr, x + 10, y, 8, true, (isNewsLockout ? C'255,60,80' : C'0,255,140'), corner);
         y += lineHeight;
 
-        // Etiqueta del Motor TEMPEST
-        string tempestStatusStr = StringFormat("[ ENGINE_TEMPEST_MK5 ]: ACTIVO | PROXIMIDAD: %.0f%% | BIAS: %s", 
-                                                 tempestProximity, tempestDirection);
-        CreateOrUpdateLabel("TempestStatus", tempestStatusStr, x + 10, y, 8, true, C'0,255,140', corner);
+        // Módulo SENTINEL_MK1 (Escudo de Noticias)
+        string sentinelStatus = isNewsLockout ? "BLOQUEO ACTIVO 🔴" : "SEGURO (OPERATIVO) 🟢";
+        string newsInfoStr = (hoursToNextNews < 12.0) ? StringFormat("%s en %.1fh", nextNewsName, hoursToNextNews) : "Sin eventos < 12h";
+        string sentinelStr = StringFormat("[ SENTINEL_MK1 ] : %s | NOTICIA: %s", sentinelStatus, newsInfoStr);
+        color sentinelClr = isNewsLockout ? C'255,60,80' : C'0,240,255';
+        CreateOrUpdateLabel("ModuleSentinel", sentinelStr, x + 10, y, 8, true, sentinelClr, corner);
         y += lineHeight + 4;
 
         CreateOrUpdateLabel("Div2", "------------------------------------------------------------------------------------------------------------", x, y, 8, false, C'0,200,255', corner);
-        y += lineHeight + 2;    y += lineHeight + 2;
-
-        // --- SECCIÓN 3: [ CALENDARIO ECONÓMICO Y NOTICIAS ] ---
-        CreateOrUpdateLabel("Sec3_Header", "[ 📰 ESCUDO DE NOTICIAS DE ALTO IMPACTO (USD) ]", x, y, 9, true, C'255,0,255', corner);
         y += lineHeight + 2;
-
-        string newsSum = CVoidNewsWatcher::GetTodayNewsSummary();
-        CreateOrUpdateLabel("NewsSummary", "Hoy: " + newsSum, x + 10, y, 8, false, C'255,200,0', corner);
     }
 
     //------------------------------------------------------------------

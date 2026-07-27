@@ -12,7 +12,7 @@
 #property strict
 
 #define BOT_NAME        "EMPTY_VOID"
-#define BOT_VERSION     "2.1.1"
+#define BOT_VERSION     "2.2.0"
 #define BOT_MAGIC_BASE  111100
 #define BOT_SYMBOL      "XAUUSD"
 
