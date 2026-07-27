@@ -38,12 +38,16 @@ private:
     datetime          m_last_bar_time[5];
 
     double            m_risk_tier1, m_risk_tier2, m_risk_tier3;
+    
+    // Encapsulamiento de parámetros del motor (Desacoplamiento de inputs globales)
+    double            m_tempest_rr;
+    int               m_tempest_sl_buffer;
 
     bool              IsNewBar(ENUM_TIMEFRAMES tf, int index);
     void              DetectNewFVGs(ENUM_TIMEFRAMES tf);
     void              ScanHistoricalGaps();
     void              UpdateGapStates(ENUM_TIMEFRAMES tf);
-    int               GetMacroTrend(ENUM_TIMEFRAMES macro_tf);
+    int               GetMacroTrend(); // Declaración limpia sin parámetros muertos
     void              CleanMemory();
     ENUM_SETUP_TIER   EvaluateTier(SGapStructure &gap, int current_macro_trend);
     double            CalculateLotSize(double sl_dist, ENUM_SETUP_TIER tier);
@@ -56,6 +60,8 @@ public:
     virtual bool      Init(int engineId, string name) override;
     virtual EngineSignal Evaluate() override;
     virtual void      OnDeinit() override;
+
+    void              SetParameters(double rr, int slBuffer) { m_tempest_rr = rr; m_tempest_sl_buffer = slBuffer; }
 };
 
 CEngine_Tempest::CEngine_Tempest() {
@@ -72,6 +78,10 @@ CEngine_Tempest::CEngine_Tempest() {
     m_risk_tier2 = 0.0050;
     m_risk_tier3 = 0.0025;
     
+    // Valores por defecto encapsulados
+    m_tempest_rr = 2.0;
+    m_tempest_sl_buffer = 20;
+    
     for(int i = 0; i < 5; i++) m_last_bar_time[i] = 0;
 }
 
@@ -84,16 +94,24 @@ bool CEngine_Tempest::Init(int engineId, string name) {
     this.m_engineId = engineId;     
     this.m_engineName = name;
     
+    // Fallback defensivo a inputs globales si están disponibles
+    #ifdef Inp_Tempest_RR
+        m_tempest_rr = Inp_Tempest_RR;
+    #endif
+    #ifdef Inp_Tempest_SL_Buffer
+        m_tempest_sl_buffer = Inp_Tempest_SL_Buffer;
+    #endif
+
     m_ema200_handle = iMA(_Symbol, PERIOD_H1, 200, 0, MODE_EMA, PRICE_CLOSE);
     if(m_ema200_handle == INVALID_HANDLE) {
         Print("TEMPEST MK5: Error cargando EMA 200");
         return false;
     }
 
-    // Ejecutar escaneo histórico de arranque
+    // Ejecutar escaneo histórico de arranque (Warm-up Scan)
     ScanHistoricalGaps();
 
-    Print("Motor TEMPEST MK5 Iniciado. ID: ", m_engineId);
+    PrintFormat("Motor TEMPEST MK5 Iniciado. ID: %d | RR: %.1f | SL Buffer: %d ticks", m_engineId, m_tempest_rr, m_tempest_sl_buffer);
     return true;
 }
 
@@ -110,13 +128,13 @@ bool CEngine_Tempest::IsNewBar(ENUM_TIMEFRAMES tf, int index) {
     return false;
 }
 
-int CEngine_Tempest::GetMacroTrend(ENUM_TIMEFRAMES macro_tf) {
+int CEngine_Tempest::GetMacroTrend() {
     double ema_values[];
     ArrayResize(ema_values, 2);
     ArraySetAsSeries(ema_values, true);
     if(CopyBuffer(m_ema200_handle, 0, 1, 2, ema_values) < 2) return 0; 
     
-    double last_close = iClose(_Symbol, macro_tf, 1);
+    double last_close = iClose(_Symbol, PERIOD_H1, 1);
     bool is_price_above = (last_close > ema_values[0]);
     bool is_price_below = (last_close < ema_values[0]);
     bool is_slope_up = (ema_values[0] > ema_values[1]); 
@@ -132,7 +150,7 @@ void CEngine_Tempest::ScanHistoricalGaps()
     for(int t = 0; t < 5; t++)
     {
         ENUM_TIMEFRAMES tf = m_tracked_tfs[t];
-        int lookback = 50; // Escanear las últimas 50 velas al iniciar
+        int lookback = 50; 
         
         for(int bar = lookback; bar >= 1; bar--)
         {
@@ -169,7 +187,6 @@ void CEngine_Tempest::ScanHistoricalGaps()
                         m_gaps[newIdx].price_lower = candleC_high;
                     }
 
-                    // Verificar si en velas posteriores este FVG se invirtió a iFVG
                     double last_close = iClose(_Symbol, tf, bar);
                     if(m_gaps[newIdx].state == GAP_FVG_BEARISH && last_close > m_gaps[newIdx].price_upper)
                     {
@@ -197,7 +214,7 @@ void CEngine_Tempest::DetectNewFVGs(ENUM_TIMEFRAMES tf) {
     
     if(isBullishFVG || isBearishFVG) {
         int size = ArraySize(m_gaps);
-        int newIdx = size; // Índice correcto del elemento recién añadido
+        int newIdx = size; 
         
         if(ArrayResize(m_gaps, size + 1) > 0) {
             m_gaps[newIdx].id = ++m_gap_counter;
@@ -227,25 +244,40 @@ void CEngine_Tempest::UpdateGapStates(ENUM_TIMEFRAMES tf)
     double last_close = iClose(_Symbol, tf, 1);
     for(int i = 0; i < totalGaps; i++) 
     {
-        if(i >= ArraySize(m_gaps)) break; // Resguardo contra desbordamiento
+        if(i >= ArraySize(m_gaps)) break;
         if(!m_gaps[i].is_active || m_gaps[i].timeframe != tf) continue;
         
         m_gaps[i].bars_lifetime++;
+        
+        // Expiración por límite de vida útil (> 20 velas)
         if(m_gaps[i].bars_lifetime > 20) { 
+            m_gaps[i].state = GAP_EXPIRED;
             m_gaps[i].is_active = false; 
             continue; 
         }
         
+        // Transición FVG -> iFVG
         if(m_gaps[i].state == GAP_FVG_BEARISH && last_close > m_gaps[i].price_upper) {
             m_gaps[i].state = GAP_IFVG_BULLISH;
         }
         else if(m_gaps[i].state == GAP_FVG_BULLISH && last_close < m_gaps[i].price_lower) {
             m_gaps[i].state = GAP_IFVG_BEARISH;
         }
+        // Invalidación estructural de iFVG por quiebre de nivel opuesto
+        else if(m_gaps[i].state == GAP_IFVG_BULLISH && last_close < m_gaps[i].price_lower) {
+            m_gaps[i].state = GAP_INVALIDATED;
+            m_gaps[i].is_active = false;
+        }
+        else if(m_gaps[i].state == GAP_IFVG_BEARISH && last_close > m_gaps[i].price_upper) {
+            m_gaps[i].state = GAP_INVALIDATED;
+            m_gaps[i].is_active = false;
+        }
     }
 }
 
 ENUM_SETUP_TIER CEngine_Tempest::EvaluateTier(SGapStructure &gap, int current_macro_trend) {
+    if(gap.state != GAP_IFVG_BULLISH && gap.state != GAP_IFVG_BEARISH) return TIER_NONE;
+
     if((gap.timeframe == PERIOD_M5 || gap.timeframe == PERIOD_M15) && 
        ((gap.state == GAP_IFVG_BULLISH && current_macro_trend == 1) || (gap.state == GAP_IFVG_BEARISH && current_macro_trend == -1))) {
         return TIER_1_OPTIMAL;
@@ -299,7 +331,6 @@ void CEngine_Tempest::CleanMemory()
         }
     }
 
-    // Redimensionar m_gaps al tamaño activo real antes de copiar
     ArrayResize(m_gaps, activeCount);
     if(activeCount > 0)
     {
@@ -339,7 +370,7 @@ EngineSignal CEngine_Tempest::Evaluate() {
     long stops_level = SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL);
     double min_stop_dist = stops_level * tick_size;
     
-    int cached_macro_trend = GetMacroTrend(PERIOD_H1);
+    int cached_macro_trend = GetMacroTrend();
     
     double highestProximity = 0.0;
     string activeBias = "NONE";
@@ -348,11 +379,10 @@ EngineSignal CEngine_Tempest::Evaluate() {
     {
         if(!m_gaps[i].is_active) continue;
         
-        // Calcular la distancia del precio a los límites de la zona
         if(m_gaps[i].state == GAP_IFVG_BULLISH || m_gaps[i].state == GAP_FVG_BULLISH) 
         {
             double dist = MathAbs(current_ask - m_gaps[i].price_upper);
-            double maxDist = 10.0; // Rango de tolerancia de 10 pips en Oro
+            double maxDist = 10.0; 
             double prox = MathMax(0.0, MathMin(99.0, (1.0 - (dist / maxDist)) * 100.0));
             if(prox > highestProximity) {
                 highestProximity = prox;
@@ -362,7 +392,7 @@ EngineSignal CEngine_Tempest::Evaluate() {
         else if(m_gaps[i].state == GAP_IFVG_BEARISH || m_gaps[i].state == GAP_FVG_BEARISH) 
         {
             double dist = MathAbs(current_bid - m_gaps[i].price_lower);
-            double maxDist = 10.0; // Rango de tolerancia de 10 pips en Oro
+            double maxDist = 10.0; 
             double prox = MathMax(0.0, MathMin(99.0, (1.0 - (dist / maxDist)) * 100.0));
             if(prox > highestProximity) {
                 highestProximity = prox;
@@ -370,7 +400,6 @@ EngineSignal CEngine_Tempest::Evaluate() {
             }
         }
         
-        // Disparo de entrada estricto únicamente para iFVG calificados por Tier
         ENUM_SETUP_TIER tier = EvaluateTier(m_gaps[i], cached_macro_trend);
         if(tier == TIER_NONE) continue;
 
@@ -383,11 +412,11 @@ EngineSignal CEngine_Tempest::Evaluate() {
             signal.proximityPct = 100.0;
             signal.direction    = "BUY";
             
-            signal.stopLoss = m_gaps[i].price_lower - (tick_size * Inp_Tempest_SL_Buffer);
+            signal.stopLoss = m_gaps[i].price_lower - (tick_size * m_tempest_sl_buffer);
             double sl_dist = MathAbs(current_ask - signal.stopLoss);
             if(sl_dist < min_stop_dist) { sl_dist = min_stop_dist; signal.stopLoss = current_ask - sl_dist; }
             
-            double tp_dist = sl_dist * Inp_Tempest_RR;
+            double tp_dist = sl_dist * m_tempest_rr;
             if(tp_dist < min_stop_dist) tp_dist = min_stop_dist;
             signal.takeProfit = current_ask + tp_dist;
             
@@ -404,11 +433,11 @@ EngineSignal CEngine_Tempest::Evaluate() {
             signal.proximityPct = 100.0;
             signal.direction    = "SELL";
             
-            signal.stopLoss = m_gaps[i].price_upper + (tick_size * Inp_Tempest_SL_Buffer);
+            signal.stopLoss = m_gaps[i].price_upper + (tick_size * m_tempest_sl_buffer);
             double sl_dist = MathAbs(signal.stopLoss - current_bid);
             if(sl_dist < min_stop_dist) { sl_dist = min_stop_dist; signal.stopLoss = current_bid + sl_dist; }
             
-            double tp_dist = sl_dist * Inp_Tempest_RR;
+            double tp_dist = sl_dist * m_tempest_rr;
             if(tp_dist < min_stop_dist) tp_dist = min_stop_dist;
             signal.takeProfit = current_bid - tp_dist;
             

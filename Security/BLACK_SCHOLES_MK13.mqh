@@ -13,7 +13,6 @@
 #property copyright "Copyright 2026, EMPTY_VOID CORE"
 #property strict
 
-// Constantes globales de tiempo e hiperparámetros
 #define BS_SQRT_252 15.874507866387544     // Raíz cuadrada de 252 días de trading
 #define BS_ANNUAL_TRADING_HOURS 5796.0    // 252 días * 23 horas operativas/día
 #define BS_BASE_VOLATILITY_PCT 16.0       // Volatilidad base por defecto para escalado
@@ -23,9 +22,6 @@
 class CBlackScholesMK13
 {
 private:
-    //------------------------------------------------------------------
-    // N(x): Función de Distribución Normal Acumulada (Abramowitz & Stegun)
-    //------------------------------------------------------------------
     static double CND(double x)
     {
         const double a1 =  0.319381530;
@@ -48,10 +44,6 @@ private:
         return cnd;
     }
 
-    //------------------------------------------------------------------
-    // Normalización de lote respetando las reglas de volumen del servidor
-    // Precisión genérica para steps no estándar con Clamp Defensivo de decimales
-    //------------------------------------------------------------------
     static double AdjustLotToBroker(string symbol, double targetLot)
     {
         double step   = SymbolInfoDouble(symbol, SYMBOL_VOLUME_STEP);
@@ -60,11 +52,9 @@ private:
         
         if(step <= 0.0) return targetLot;
 
-        // Epsilon fix: Previene imprecisiones IEEE 754 al truncar pasos de lote
         double steppedLot = MathFloor((targetLot / step) + BS_EPSILON) * step;
         double clampedLot = MathMin(maxLot, MathMax(minLot, steppedLot));
         
-        // Mapeo seguro de decimales explícito y dinámico
         int digits = 0;
         if(step == 0.01) digits = 2;
         else if(step == 0.1) digits = 1;
@@ -76,16 +66,13 @@ private:
                 double scaled = step * MathPow(10, digits);
                 if(MathAbs(scaled - MathRound(scaled)) < 0.0001) break;
             }
-            digits = MathMin(digits, 8); // Abrazadera defensiva para API MQL5
+            digits = MathMin(digits, 8);
         }
         
         return NormalizeDouble(clampedLot, digits);
     }
 
 public:
-    //------------------------------------------------------------------
-    // AUTO-CÁLCULO BOOLEANO DE VOLATILIDAD HISTÓRICA ANUALIZADA
-    //------------------------------------------------------------------
     static bool CalculateHistoricalVol(
         string symbol, 
         ENUM_TIMEFRAMES timeframe, 
@@ -94,20 +81,17 @@ public:
     )
     {
         outVolPct = 0.0;
-
         if(periodBars <= 2) return false;
 
-        // 1. Pre-validación temprana del factor de anualización (23h tradables/día)
         double annualFactor = 0.0;
         switch(timeframe)
         {
             case PERIOD_D1:  annualFactor = MathSqrt(252.0); break;
-            case PERIOD_H4:  annualFactor = MathSqrt(252.0 * 5.75); break; // 23h / 4h = 5.75 velas/día
-            case PERIOD_H1:  annualFactor = MathSqrt(BS_ANNUAL_TRADING_HOURS); break; // 5,796 hrs/año
-            default:         return false; // Timeframe no soportado
+            case PERIOD_H4:  annualFactor = MathSqrt(252.0 * 5.75); break;
+            case PERIOD_H1:  annualFactor = MathSqrt(BS_ANNUAL_TRADING_HOURS); break;
+            default:         return false;
         }
         
-        // 2. Extracción de historial de precios
         double closePrices[];
         ArraySetAsSeries(closePrices, true);
         
@@ -116,7 +100,6 @@ public:
             return false;
         }
             
-        // 3. Cálculo de retornos logarítmicos y varianza
         double logReturns[];
         ArrayResize(logReturns, periodBars);
         double sum = 0.0;
@@ -137,15 +120,11 @@ public:
         }
         
         double stdDev = MathSqrt(varianceSum / (double)(periodBars - 1));
-        
         double annualVolPct = stdDev * annualFactor * 100.0;
         outVolPct = MathMin(150.0, MathMax(5.0, annualVolPct));
         return true;
     }
 
-    //------------------------------------------------------------------
-    // GESTOR DEL ESCUDO DE SPREAD CON AUTO-RECUPERACIÓN DE RÉGIMEN
-    //------------------------------------------------------------------
     static bool ProcessSpreadShield(
         double currentSpread, 
         double &emaSpread, 
@@ -183,29 +162,19 @@ public:
         }
     }
 
-    //------------------------------------------------------------------
-    // Cálculo de d1 en el Modelo Black-76
-    //------------------------------------------------------------------
     static double CalculateD1(double forwardPrice, double strikePrice, double timeYears, double volatility)
     {
         if(volatility <= 0.0001 || timeYears <= 0.0001 || forwardPrice <= 0.0 || strikePrice <= 0.0) return 0.0;
-        
         double sqrtT = MathSqrt(timeYears);
         return (MathLog(forwardPrice / strikePrice) + (0.5 * volatility * volatility) * timeYears) / (volatility * sqrtT);
     }
 
-    //------------------------------------------------------------------
-    // Cálculo de d2 en el Modelo Black-76
-    //------------------------------------------------------------------
     static double CalculateD2(double d1, double volatility, double timeYears)
     {
         if(volatility <= 0.0001 || timeYears <= 0.0001) return 0.0;
         return d1 - (volatility * MathSqrt(timeYears));
     }
 
-    //------------------------------------------------------------------
-    // Rango Esperado Diario 1-Sigma (USD para ORO en 252 días tradables)
-    //------------------------------------------------------------------
     static void GetExpectedDailyRange(double spotPrice, double annualVolatilityPct, double &upperBound1Sigma, double &lowerBound1Sigma)
     {
         if(spotPrice <= 0.0 || annualVolatilityPct <= 0.0)
@@ -222,9 +191,6 @@ public:
         lowerBound1Sigma = spotPrice - moveUSD;
     }
 
-    //------------------------------------------------------------------
-    // Probabilidad Real N(d2) de Alcanzar un Target (TP) en 'N' Horas
-    //------------------------------------------------------------------
     static bool CalculateBSProbabilityToTarget(
         double currentPrice, 
         double targetPrice, 
@@ -250,18 +216,12 @@ public:
         return true;
     }
 
-    //------------------------------------------------------------------
-    // Evaluación de Delta N(d2) Relativo para Break Even Cuantitativo
-    //------------------------------------------------------------------
     static bool CheckBreakEvenDelta(double initialProb, double currentProb, double minDelta = 20.0)
     {
         if(initialProb <= 0.0 || currentProb <= 0.0) return false;
         return ((currentProb - initialProb) >= minDelta);
     }
 
-    //------------------------------------------------------------------
-    // Distancia de Trailing Stop Volátil 1-Sigma (en Pips)
-    //------------------------------------------------------------------
     static double GetQuantTrailingDistance(string symbol, double annualVolatilityPct, double alphaFactor)
     {
         string sym = (symbol == NULL || symbol == "") ? _Symbol : symbol;
@@ -275,9 +235,7 @@ public:
         return (moveUSD / point);
     }
 
-    //------------------------------------------------------------------
-    // VALIDADOR DE ENTRADA TOTALMENTE BLINDADO
-    //------------------------------------------------------------------
+    // Parámetro 'alreadyRiskSized = true' por defecto para evitar doble escalado
     static bool ValidateEntry(
         ENUM_ORDER_TYPE orderType,
         double spotPrice,
@@ -288,99 +246,39 @@ public:
         double baseLot,
         double &adjustedLot,
         string symbol = NULL,
-        double baseVolPct = BS_BASE_VOLATILITY_PCT
+        double baseVolPct = BS_BASE_VOLATILITY_PCT,
+        bool alreadyRiskSized = true
     )
     {
-        // 0. GUARDIAS DE PARÁMETROS DE ENTRADA DEL LLAMADOR
-        if(baseLot <= 0.0)
-        {
-            Print("BLACK_SCHOLES_MK13 [RECHAZADO]: baseLot inválido (<= 0.0) recibido.");
-            return false;
-        }
+        if(baseLot <= 0.0 || baseVolPct <= 0.0) return false;
+        if(minRequiredProbPct < 0.0 || minRequiredProbPct > 100.0) return false;
+        if(takeProfitPrice <= 0.0 || spotPrice <= 0.0) return false;
 
-        if(baseVolPct <= 0.0)
-        {
-            Print("BLACK_SCHOLES_MK13 [RECHAZADO]: baseVolPct inválido (<= 0.0) recibido.");
-            return false;
-        }
+        bool isSellSide = (orderType == ORDER_TYPE_SELL || orderType == ORDER_TYPE_SELL_LIMIT || orderType == ORDER_TYPE_SELL_STOP || orderType == ORDER_TYPE_SELL_STOP_LIMIT);
+        bool isBuySide  = (orderType == ORDER_TYPE_BUY || orderType == ORDER_TYPE_BUY_LIMIT || orderType == ORDER_TYPE_BUY_STOP || orderType == ORDER_TYPE_BUY_STOP_LIMIT);
 
-        if(minRequiredProbPct < 0.0 || minRequiredProbPct > 100.0)
-        {
-            PrintFormat("BLACK_SCHOLES_MK13 [RECHAZADO]: minRequiredProbPct inválido (%.2f%%) recibido.", minRequiredProbPct);
-            return false;
-        }
-
-        if(takeProfitPrice <= 0.0 || spotPrice <= 0.0)
-        {
-            PrintFormat("BLACK_SCHOLES_MK13 [RECHAZADO]: Precios inválidos (Spot: %.2f, TP: %.2f).", spotPrice, takeProfitPrice);
-            return false;
-        }
-
-        // 0.5 GUARDIA DE COHERENCIA DIRECCIONAL Y TIPO DE ORDEN
-        bool isSellSide = (orderType == ORDER_TYPE_SELL || 
-                           orderType == ORDER_TYPE_SELL_LIMIT || 
-                           orderType == ORDER_TYPE_SELL_STOP || 
-                           orderType == ORDER_TYPE_SELL_STOP_LIMIT);
-
-        bool isBuySide  = (orderType == ORDER_TYPE_BUY || 
-                           orderType == ORDER_TYPE_BUY_LIMIT || 
-                           orderType == ORDER_TYPE_BUY_STOP || 
-                           orderType == ORDER_TYPE_BUY_STOP_LIMIT);
-
-        if(!isSellSide && !isBuySide)
-        {
-            PrintFormat("BLACK_SCHOLES_MK13 [RECHAZADO]: Tipo de orden no soportado (%d).", orderType);
-            return false;
-        }
-
-        if(isSellSide && takeProfitPrice >= spotPrice)
-        {
-            PrintFormat("BLACK_SCHOLES_MK13 [RECHAZADO]: TP de venta (%.2f) debe estar por debajo del spot (%.2f).", takeProfitPrice, spotPrice);
-            return false;
-        }
-
-        if(isBuySide && takeProfitPrice <= spotPrice)
-        {
-            PrintFormat("BLACK_SCHOLES_MK13 [RECHAZADO]: TP de compra (%.2f) debe estar por encima del spot (%.2f).", takeProfitPrice, spotPrice);
-            return false;
-        }
+        if(!isSellSide && !isBuySide) return false;
+        if(isSellSide && takeProfitPrice >= spotPrice) return false;
+        if(isBuySide && takeProfitPrice <= spotPrice) return false;
 
         string sym = (symbol == NULL || symbol == "") ? _Symbol : symbol;
         double rawProbability = 0.0;
 
-        // 1. Verificar cálculo probabilístico
-        if(!CalculateBSProbabilityToTarget(spotPrice, takeProfitPrice, targetTimeHours, annualVolatilityPct, rawProbability))
-        {
-            Print("BLACK_SCHOLES_MK13 [RECHAZADO]: Datos de entrada inválidos para el cálculo de volatilidad/tiempo.");
-            return false;
-        }
+        if(!CalculateBSProbabilityToTarget(spotPrice, takeProfitPrice, targetTimeHours, annualVolatilityPct, rawProbability)) return false;
 
-        // 2. Inversión probabilística para órdenes de venta
-        double finalProb = rawProbability;
-        if(isSellSide) 
-        {
-            finalProb = 100.0 - rawProbability;
-        }
+        double finalProb = isSellSide ? (100.0 - rawProbability) : rawProbability;
+        if(finalProb < minRequiredProbPct) return false;
 
-        // 3. Evaluar umbral de probabilidad mínima
-        if(finalProb < minRequiredProbPct)
+        // Escalado por volatilidad (solo si el lote no viene ya calculado por riesgo flotante)
+        double rawTargetLot = baseLot;
+        if(!alreadyRiskSized)
         {
-            PrintFormat("BLACK_SCHOLES_MK13 [RECHAZADO]: Probabilidad N(d2) de %.2f%% < %.2f%% requerido.", finalProb, minRequiredProbPct);
-            return false;
+            double volFactor = baseVolPct / MathMax(1.0, annualVolatilityPct);
+            rawTargetLot = baseLot * volFactor;
         }
-
-        // 4. Escalado por volatilidad y ajuste al bróker
-        double volFactor = baseVolPct / MathMax(1.0, annualVolatilityPct);
-        double rawTargetLot = baseLot * volFactor;
         
         adjustedLot = AdjustLotToBroker(sym, rawTargetLot);
-
-        // 5. FILTRO DE LOTE CERO
-        if(adjustedLot <= 0.0)
-        {
-            PrintFormat("BLACK_SCHOLES_MK13 [RECHAZADO]: Lote ajustado es 0.0 (Símbolo '%s' desincronizado).", sym);
-            return false;
-        }
+        if(adjustedLot <= 0.0) return false;
 
         return true;
     }

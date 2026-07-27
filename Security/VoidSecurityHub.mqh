@@ -10,32 +10,20 @@
 #ifndef VOID_SECURITY_HUB_MQH
 #define VOID_SECURITY_HUB_MQH
 
-#property copyright "Copyright 2026, EMPTY_VOID CORE"
-#property strict
-
 #include <EMPTY_VOID/Core/Config.mqh>
 #include <EMPTY_VOID/Security/BLACK_SCHOLES_MK13.mqh>
 
 class CVoidSecurityHub
 {
 public:
-    //------------------------------------------------------------------
-    // Determina el Tier dinámico (1, 2, 3) basado en la probabilidad N(d2)
-    // T1 >= 80% (Alta Convicción)
-    // T2 >= 60% (Convicción Media)
-    // T3 >= 40% (Convicción Estándar)
-    //------------------------------------------------------------------
     static int GetTierFromProbability(double probPct)
     {
         if(probPct >= 80.0) return 1;
         if(probPct >= 60.0) return 2;
         if(probPct >= 40.0) return 3;
-        return 0; // Menor al mínimo requerido (Rechazado)
+        return 0; 
     }
 
-    //------------------------------------------------------------------
-    // Verifica si la salud del Spread es segura (Procesa Escudo de Spread)
-    //------------------------------------------------------------------
     static bool CheckSpreadSafety(
         double currentSpread, 
         double &emaSpread, 
@@ -46,10 +34,7 @@ public:
         return !CBlackScholesMK13::ProcessSpreadShield(currentSpread, emaSpread, expansionStart, maxMultiplier);
     }
 
-    //------------------------------------------------------------------
-    // MODO PRINCIPAL: Verifica si una entrada está permitida por todos
-    // los escudos de seguridad (Spread, Black-Scholes MK13 y Tiers)
-    //------------------------------------------------------------------
+    // Exposición de 'alreadyRiskSized = true' en la firma de IsEntryAllowed()
     static bool IsEntryAllowed(
         ENUM_ORDER_TYPE orderType,
         double spotPrice,
@@ -60,13 +45,17 @@ public:
         double baseLot,
         double &outAdjustedLot,
         int &outAssignedTier,
-        string symbol = NULL
+        string symbol = NULL,
+        bool alreadyRiskSized = true
     )
     {
         outAdjustedLot  = baseLot;
         outAssignedTier = 0;
         string sym = (symbol == NULL || symbol == "") ? _Symbol : symbol;
-        string sideStr = (orderType == ORDER_TYPE_BUY || orderType == ORDER_TYPE_BUY_LIMIT || orderType == ORDER_TYPE_BUY_STOP) ? "BUY" : "SELL";
+        
+        bool isBuy  = (orderType == ORDER_TYPE_BUY || orderType == ORDER_TYPE_BUY_LIMIT || orderType == ORDER_TYPE_BUY_STOP || orderType == ORDER_TYPE_BUY_STOP_LIMIT);
+        bool isSell = (orderType == ORDER_TYPE_SELL || orderType == ORDER_TYPE_SELL_LIMIT || orderType == ORDER_TYPE_SELL_STOP || orderType == ORDER_TYPE_SELL_STOP_LIMIT);
+        string sideStr = isBuy ? "BUY" : "SELL";
 
         // 1. Cálculo probabilístico N(d2) vía Black-Scholes MK13
         double probPct = 0.0;
@@ -74,14 +63,14 @@ public:
         
         if(probCalculated)
         {
-            if(orderType == ORDER_TYPE_SELL || orderType == ORDER_TYPE_SELL_LIMIT || orderType == ORDER_TYPE_SELL_STOP)
+            if(isSell)
             {
                 probPct = 100.0 - probPct;
             }
             outAssignedTier = GetTierFromProbability(probPct);
         }
 
-        // 2. Validar Entrada con el Módulo Cuantitativo
+        // 2. Validar Entrada transmitiendo el parámetro 'alreadyRiskSized'
         bool isValid = CBlackScholesMK13::ValidateEntry(
             orderType, 
             spotPrice, 
@@ -91,10 +80,12 @@ public:
             minRequiredProbPct, 
             baseLot, 
             outAdjustedLot, 
-            sym
+            sym,
+            BS_BASE_VOLATILITY_PCT,
+            alreadyRiskSized
         );
 
-        // 3. Emitir Log de Auditoría en Vivo en la pestaña Expertos de MT5
+        // 3. Emitir Log de Auditoría en Vivo
         if(isValid)
         {
             PrintFormat("🛡️ [%s - SECURITY HUB]: Señal APROBADA | Tipo: %s | Probabilidad N(d2): %.2f%% | Tier Asignado: T%d | Lote Base: %.2f -> Lote Ajustado: %.2f",
