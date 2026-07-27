@@ -251,6 +251,31 @@ public:
     }
 
     //------------------------------------------------------------------
+    // Evaluación de Delta N(d2) Relativo para Break Even Cuantitativo
+    //------------------------------------------------------------------
+    static bool CheckBreakEvenDelta(double initialProb, double currentProb, double minDelta = 20.0)
+    {
+        if(initialProb <= 0.0 || currentProb <= 0.0) return false;
+        return ((currentProb - initialProb) >= minDelta);
+    }
+
+    //------------------------------------------------------------------
+    // Distancia de Trailing Stop Volátil 1-Sigma (en Pips)
+    //------------------------------------------------------------------
+    static double GetQuantTrailingDistance(string symbol, double annualVolatilityPct, double alphaFactor)
+    {
+        string sym = (symbol == NULL || symbol == "") ? _Symbol : symbol;
+        double spot = SymbolInfoDouble(sym, SYMBOL_BID);
+        double point = SymbolInfoDouble(sym, SYMBOL_POINT);
+        if(spot <= 0.0 || point <= 0.0 || annualVolatilityPct <= 0.0) return 0.0;
+
+        double dailyVol = (annualVolatilityPct / 100.0) / BS_SQRT_252;
+        double moveUSD  = spot * dailyVol * alphaFactor;
+        
+        return (moveUSD / point);
+    }
+
+    //------------------------------------------------------------------
     // VALIDADOR DE ENTRADA TOTALMENTE BLINDADO
     //------------------------------------------------------------------
     static bool ValidateEntry(

@@ -19,12 +19,14 @@
 #include <EMPTY_VOID/Security/BLACK_SCHOLES_MK13.mqh>
 #include <EMPTY_VOID/Security/VoidSecurityHub.mqh>
 #include <EMPTY_VOID/Risk/DrawdownGuard.mqh>
-#include <EMPTY_VOID/Theme/Theme_Cyberpunk.mqh>
-#include <EMPTY_VOID/ProfitTracker/ProfitTracker.mqh>
 #include <EMPTY_VOID/Notifications/NewsWatcher.mqh>
 #include <EMPTY_VOID/Notifications/StartupReport.mqh>
 #include <EMPTY_VOID/Notifications/TradeAlerts.mqh>
 #include <EMPTY_VOID/Engines/IEngine.mqh>
+#include <EMPTY_VOID/Risk/DrawdownGuard.mqh>
+#include <EMPTY_VOID/Risk/VoidTrailingManager.mqh>
+#include <EMPTY_VOID/Theme/Theme_Cyberpunk.mqh>
+#include <EMPTY_VOID/ProfitTracker/ProfitTracker.mqh>
 #include <EMPTY_VOID/Engines/Engine_Template.mqh>
 #include <EMPTY_VOID/UI/Dashboard.mqh>
 
@@ -39,6 +41,11 @@ input double   InpBsAnnualVol          = 16.0;      // Volatilidad Implícita An
 input double   InpBsTargetHours        = 4.0;       // Horizonte de tiempo de la orden (Horas)
 input double   InpBsMinProb            = 40.0;      // Probabilidad Delta Mínima N(d2) (%)
 input double   InpBsMaxSpreadMult      = 2.0;       // Multiplicador máximo de spread permitido
+input bool     InpEnableQuantBE        = true;      // Habilitar Break Even Cuantitativo por Delta N(d2)
+input double   InpBsBEDeltaProb        = 20.0;      // Incremento Relativo N(d2) para Break Even (%)
+input bool     InpEnableQuantTrailing  = true;      // Habilitar Trailing Stop Volátil 1-Sigma
+input double   InpQuantTrailingAlpha   = 0.35;      // Multiplicador 1-Sigma (Alpha Factor)
+input double   InpTrailingStepPips     = 3.0;       // Paso Mínimo Trailing (Pips Anti-Spam)
 
 input group "=== MÓDULO MOTOR TEMPEST MK5 ==="
 sinput string  tempest_settings        = "--- Ajustes Motor TEMPEST MK5 ---";
@@ -243,6 +250,20 @@ void OnTick()
         }
     }
 
+    // 2.5 Gestión Cuantitativa Continua de Posiciones (Break Even & Trailing Stop Volátil)
+    CVoidTrailingManager::ProcessQuantTrailing(
+        g_trade,
+        InpBsAnnualVol,
+        InpBsTargetHours,
+        InpEnableQuantBE,
+        InpBsBEDeltaProb,
+        InpEnableQuantTrailing,
+        InpQuantTrailingAlpha,
+        InpTrailingStepPips,
+        InpEnableAlerts,
+        InpEnablePush
+    );
+
     // 3. EVALUACIÓN Y EJECUCIÓN DEL MOTOR TEMPEST MK5
     EngineSignal signal = EngineTempest.Evaluate();
 
@@ -332,6 +353,11 @@ void OnTradeTransaction(
 
                 if(dealSym == _Symbol && (CMagicNumberManager::IsEVTrade(dealMagic) || StringFind(dealComm, "EV_") >= 0))
                 {
+                    // Limpieza de memoria de estado inicial (Directiva 2)
+                    ulong dealPosID = (ulong)HistoryDealGetInteger(dealTicket, DEAL_POSITION_ID);
+                    CVoidState::DeleteState(StringFormat("InitProb_%I64u", dealPosID));
+                    CVoidState::DeleteState(StringFormat("InitProb_%I64u", dealTicket));
+
                     double lot         = HistoryDealGetDouble(dealTicket, DEAL_VOLUME);
                     double realExit    = HistoryDealGetDouble(dealTicket, DEAL_PRICE);
                     double rawPnL      = HistoryDealGetDouble(dealTicket, DEAL_PROFIT);
