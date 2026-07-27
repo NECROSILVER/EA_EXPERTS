@@ -1,16 +1,16 @@
 //+------------------------------------------------------------------+
 //|                                                    Dashboard.mqh |
-//|                                  Copyright 2026, CORTEX_MK6 CORE |
+//|                                  Copyright 2026, EMPTY_VOID CORE |
 //|                                                                  |
 //| DESCRIPCIÓN:                                                      |
 //| Panel de Control Visual (HUD Dashboard) con Estética Cyberpunk   |
-//| Neón de Alto Contraste para la Arquitectura CORTEX_MK6 v2.2.0.   |
-//| Soporte Multi-Motor en vivo: TEMPEST_MK5 (M105) & CRT_SNIPER (M106)|
+//| Neón de Alto Contraste para la Arquitectura EMPTY_VOID v2.2.0.   |
+//| Soporte Multi-Motor en vivo: TEMPEST_MK5 (M105) & CORTEX_MK6 (M106)|
 //+------------------------------------------------------------------+
 #ifndef DASHBOARD_MQH
 #define DASHBOARD_MQH
 
-#property copyright "Copyright 2026, CORTEX_MK6 CORE"
+#property copyright "Copyright 2026, EMPTY_VOID CORE"
 #property strict
 
 #include <EMPTY_VOID/Core/Config.mqh>
@@ -18,7 +18,7 @@
 #include <EMPTY_VOID/Notifications/NewsWatcher.mqh>
 #include <EMPTY_VOID/Security/VoidSecurityHub.mqh>
 
-#define HUD_PREFIX "CTX_HUD_"
+#define HUD_PREFIX "EV_HUD_"
 #define HUD_FONT   "Trebuchet MS"
 
 class CVoidDashboard
@@ -111,7 +111,7 @@ public:
     }
 
     //------------------------------------------------------------------
-    // Actualiza los valores en vivo del Dashboard para CORTEX_MK6
+    // Actualiza los valores en vivo del Dashboard para EMPTY_VOID v2.2.0
     //------------------------------------------------------------------
     static void Update(
         double currentSpread = 0.0, 
@@ -215,8 +215,8 @@ public:
         CreateOrUpdateLabel("EngineTempest", tempestStr, x + 10, y, 8, true, (isNewsLockout ? C'255,60,80' : C'0,255,140'), corner);
         y += lineHeight;
 
-        // Motor CRT_SNIPER_MK1 (M106)
-        string crtStr = StringFormat("[ CRT_SNIPER_MK1 ] : %s %s | PROX: %.0f%% | BIAS: %s | BS_MK13: ✅",
+        // Motor CORTEX_MK6 (M106)
+        string crtStr = StringFormat("[ CORTEX_MK6   ] : %s %s | PROX: %.0f%% | BIAS: %s | BS_MK13: ✅",
                                      (isNewsLockout ? "BLOQUEADO" : "ACTIVO"),
                                      (isNewsLockout ? "🔴" : "🎯"),
                                      crtProximity, crtDirection);
@@ -242,8 +242,7 @@ public:
     static void Destroy()
     {
         ObjectsDeleteAll(0, HUD_PREFIX);
-        // Limpieza de prefijo antiguo por compatibilidad
-        ObjectsDeleteAll(0, "EV_HUD_");
+        ObjectsDeleteAll(0, "CTX_HUD_");
         ChartRedraw(0);
     }
 };

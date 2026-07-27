@@ -1,15 +1,15 @@
 //+------------------------------------------------------------------+
 //|                                                   EMPTY_VOID.mq5 |
-//|                     CORTEX_MK6 DESTRUCTIVE_CORE v2.2.0           |
+//|                     EMPTY_VOID DESTRUCTIVE_CORE v2.2.0           |
 //|                                     OPERADOR : NECRO_SILVER      |
 //+------------------------------------------------------------------+
-#property copyright "Copyright 2026, CORTEX_MK6 CORE | NECRO_SILVER"
+#property copyright "Copyright 2026, EMPTY_VOID CORE | NECRO_SILVER"
 #property link      "https://www.mql5.com"
 #property version   "2.20"
 #property strict
-#property description "  CORTEX_MK6 DESTRUCTIVE_CORE v2.2.0"
+#property description "  EMPTY_VOID DESTRUCTIVE_CORE v2.2.0"
 #property description "  OPERADOR: NECRO_SILVER"
-#property description "  MOTORES INTEGRADOS: TEMPEST MK5 (M105) & CRT SNIPER MK1 (M106)"
+#property description "  MOTORES INTEGRADOS: TEMPEST MK5 (M105) & CORTEX MK6 (M106)"
 #property description "  MÓDULO INTEGRADO: SENTINEL MK2 (Escudo Noticias 12H CDMX)"
 
 #include <Trade/Trade.mqh>
@@ -58,7 +58,7 @@ sinput string  tempest_settings        = "--- Ajustes Motor TEMPEST MK5 ---";
 input double   Inp_Tempest_RR          = 2.0;       // Relación Riesgo:Beneficio (Ej. 2.0 = 1:2)
 input int      Inp_Tempest_SL_Buffer   = 20;        // Margen de ticks para el Stop Loss
 
-input group "=== MÓDULO MOTOR CRT SNIPER MK1 (M106) ==="
+input group "=== MÓDULO MOTOR CORTEX MK6 (M106) ==="
 input double   Inp_CRT_RR              = 2.5;       // Ratio Riesgo/Beneficio (1:2.5)
 input int      Inp_CRT_SL_Buffer       = 20;        // Buffer de Stop Loss (Ticks)
 input double   Inp_CRT_Min_Sweep_USD   = 1.50;      // Barrido Mínimo ($XAUUSD)
@@ -101,7 +101,7 @@ void CloseAllBotPositions(string reason)
             ulong posMagic = (ulong)PositionGetInteger(POSITION_MAGIC);
             string posComm = PositionGetString(POSITION_COMMENT);
             
-            if(posSym == _Symbol && (CMagicNumberManager::IsEVTrade(posMagic) || StringFind(posComm, "EV_") >= 0 || StringFind(posComm, "CTX_") >= 0))
+            if(posSym == _Symbol && (CMagicNumberManager::IsEVTrade(posMagic) || StringFind(posComm, "EV_") >= 0))
             {
                 if(g_trade.PositionClose(ticket))
                 {
@@ -150,7 +150,7 @@ void ProcessEngineSignal(IEngine *engine, EngineSignal &signal)
         if(!isAllowed) return; // Bloqueo defensivo registrado en log
     }
 
-    // B. Asignar Magic Number dinámico y Comment Tag (CTX_)
+    // B. Asignar Magic Number dinámico y Comment Tag (EV_)
     ulong magic = CMagicNumberManager::GetMagicNumber(engineId);
     g_trade.SetExpertMagicNumber(magic);
 
@@ -231,9 +231,9 @@ int OnInit()
     EngineTempest = new CEngine_Tempest();
     if(!EngineTempest.Init(TEMPEST_ENGINE_ID, "TMPST_MK5")) isHealthOk = false;
 
-    // Punto 4: Instanciación e Inicialización del Motor CRT Sniper (M106 v6.0)
+    // Punto 4: Instanciación e Inicialización del Motor CORTEX MK6 (M106 v6.0)
     EngineCRT = new CEngine_CRT();
-    if(!EngineCRT.Init(CRT_ENGINE_ID, "CRT_SNIPER_MK1")) isHealthOk = false;
+    if(!EngineCRT.Init(CRT_ENGINE_ID, "CORTEX_MK6")) isHealthOk = false;
     EngineCRT.SetParameters(Inp_CRT_RR, Inp_CRT_SL_Buffer, Inp_CRT_Min_Sweep_USD, Inp_CRT_Max_Sweep_USD);
 
     // Punto 5: Escritura de Memoria Persistente CVoidState
@@ -391,7 +391,7 @@ void OnTick()
         InpEnablePush
     );
 
-    // 3. EVALUACIÓN MULTI-MOTOR (TEMPEST M105 & CRT SNIPER M106)
+    // 3. EVALUACIÓN MULTI-MOTOR (TEMPEST M105 & CORTEX MK6 M106)
     if(CheckPointer(EngineTempest) != POINTER_INVALID)
     {
         EngineSignal sigTempest = EngineTempest.Evaluate();
@@ -426,7 +426,7 @@ void OnTradeTransaction(
                 ulong dealMagic = (ulong)HistoryDealGetInteger(dealTicket, DEAL_MAGIC);
                 string dealComm = HistoryDealGetString(dealTicket, DEAL_COMMENT);
 
-                if(dealSym == _Symbol && (CMagicNumberManager::IsEVTrade(dealMagic) || StringFind(dealComm, "EV_") >= 0 || StringFind(dealComm, "CTX_") >= 0))
+                if(dealSym == _Symbol && (CMagicNumberManager::IsEVTrade(dealMagic) || StringFind(dealComm, "EV_") >= 0))
                 {
                     // Limpieza de memoria de estado inicial usando el ticket de posición nativo trans.position
                     if(trans.position > 0)

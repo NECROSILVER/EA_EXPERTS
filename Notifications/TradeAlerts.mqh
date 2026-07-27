@@ -1,16 +1,16 @@
 //+------------------------------------------------------------------+
 //|                                                  TradeAlerts.mqh |
-//|                                  Copyright 2026, CORTEX_MK6 CORE |
+//|                                  Copyright 2026, EMPTY_VOID CORE |
 //|                                                                  |
 //| DESCRIPCIÓN:                                                      |
 //| Notificador Estandarizado Institucional con Diseños Cyberpunk,   |
 //| Análisis de Slippage, Comparativa de Balance y Alertas Push      |
-//| Decoradas v2.2.0 para CORTEX_MK6.                                |
+//| Decoradas v2.2.0 para EMPTY_VOID DESTRUCTIVE_CORE.               |
 //+------------------------------------------------------------------+
 #ifndef TRADE_ALERTS_MQH
 #define TRADE_ALERTS_MQH
 
-#property copyright "Copyright 2026, CORTEX_MK6 CORE"
+#property copyright "Copyright 2026, EMPTY_VOID CORE"
 #property strict
 
 #include <EMPTY_VOID/Core/Config.mqh>

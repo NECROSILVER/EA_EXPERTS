@@ -1,19 +1,19 @@
 //+------------------------------------------------------------------+
 //|                                                       Config.mqh |
-//|                                  Copyright 2026, CORTEX_MK6 CORE |
+//|                                  Copyright 2026, EMPTY_VOID CORE |
 //|                                                                  |
 //| DESCRIPCIÓN:                                                      |
-//| Centralización de Constantes Globales para CORTEX_MK6 v2.2.0     |
+//| Centralización de Constantes Globales para EMPTY_VOID v2.2.0     |
 //+------------------------------------------------------------------+
 #ifndef CONFIG_MQH
 #define CONFIG_MQH
 
-#property copyright "Copyright 2026, CORTEX_MK6 CORE"
+#property copyright "Copyright 2026, EMPTY_VOID CORE"
 #property strict
 
-#define BOT_NAME          "CORTEX_MK6"
+#define BOT_NAME          "EMPTY_VOID"
 #define BOT_VERSION       "v2.2.0"
-#define BOT_FULL_TITLE    "CORTEX_MK6 DESTRUCTIVE_CORE v2.2.0"
+#define BOT_FULL_TITLE    "EMPTY_VOID DESTRUCTIVE_CORE v2.2.0"
 #define BOT_MAGIC_BASE    111100
 #define BOT_SYMBOL        "XAUUSD"
 

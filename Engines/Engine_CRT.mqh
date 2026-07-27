@@ -4,7 +4,7 @@
 //|                                https://github.com/NECROSILVER/EA |
 //|                                                                  |
 //| DESCRIPCIÓN:                                                      |
-//| Motor M106 - CRT_SNIPER_MK1 (Candle Range Theory) v6.0           |
+//| Motor M106 - CORTEX_MK6 (Candle Range Theory CRT SNIPER) v6.0    |
 //| Caza de manipulación y barrido de liquidez en mechas HTF (H1)     |
 //| con seguimiento de extremo real, calibración USD para XAUUSD,    |
 //| evaluación de Tiers y Timeout activo de 20 min (4 velas M5).     |
@@ -99,16 +99,16 @@ CEngine_CRT::~CEngine_CRT() {
 
 bool CEngine_CRT::Init(int engineId, string name) {
     this.m_engineId   = engineId;
-    this.m_engineName = name;
+    this.m_engineName = (name != "" && name != NULL) ? name : "CORTEX_MK6";
 
     m_ema200_handle = iMA(_Symbol, PERIOD_H1, 200, 0, MODE_EMA, PRICE_CLOSE);
     if(m_ema200_handle == INVALID_HANDLE) {
-        Print("CRT SNIPER M106: Error cargando EMA 200 en H1");
+        Print("CORTEX_MK6 M106: Error cargando EMA 200 en H1");
         return false;
     }
 
     UpdateHTFRange();
-    PrintFormat("Motor CRT_SNIPER_MK1 (M106) v6.0 Iniciado. ID: %d", m_engineId);
+    PrintFormat("Motor CORTEX_MK6 (M106) v6.0 Iniciado. ID: %d", m_engineId);
     return true;
 }
 
@@ -117,7 +117,7 @@ void CEngine_CRT::OnDeinit() {
         IndicatorRelease(m_ema200_handle);
         m_ema200_handle = INVALID_HANDLE;
     }
-    PrintFormat("Motor CRT_SNIPER_MK1 (ID: %d) Detenido y liberado.", m_engineId);
+    PrintFormat("Motor CORTEX_MK6 (ID: %d) Detenido y liberado.", m_engineId);
 }
 
 bool CEngine_CRT::UpdateHTFRange() {
