@@ -1,15 +1,16 @@
 //+------------------------------------------------------------------+
 //|                                                    Dashboard.mqh |
-//|                                  Copyright 2026, EMPTY_VOID CORE |
+//|                                  Copyright 2026, CORTEX_MK6 CORE |
 //|                                                                  |
 //| DESCRIPCIÓN:                                                      |
 //| Panel de Control Visual (HUD Dashboard) con Estética Cyberpunk   |
-//| Neón de Alto Contraste para la Arquitectura EMPTY_VOID v2.0.    |
+//| Neón de Alto Contraste para la Arquitectura CORTEX_MK6 v2.2.0.   |
+//| Soporte Multi-Motor en vivo: TEMPEST_MK5 (M105) & CRT_SNIPER (M106)|
 //+------------------------------------------------------------------+
 #ifndef DASHBOARD_MQH
 #define DASHBOARD_MQH
 
-#property copyright "Copyright 2026, EMPTY_VOID CORE"
+#property copyright "Copyright 2026, CORTEX_MK6 CORE"
 #property strict
 
 #include <EMPTY_VOID/Core/Config.mqh>
@@ -17,7 +18,7 @@
 #include <EMPTY_VOID/Notifications/NewsWatcher.mqh>
 #include <EMPTY_VOID/Security/VoidSecurityHub.mqh>
 
-#define HUD_PREFIX "EV_HUD_"
+#define HUD_PREFIX "CTX_HUD_"
 #define HUD_FONT   "Trebuchet MS"
 
 class CVoidDashboard
@@ -98,10 +99,10 @@ public:
     //------------------------------------------------------------------
     static bool Init(string symbol = NULL, int corner = 0, int x = 15, int y = 25)
     {
-        // 1. Marcos y fondo sólido Cyberpunk
-        CreateOrUpdateRect("FrameOuter", x - 12, y - 12, 660, 380, C'0,240,255', C'0,240,255', 2, corner);
-        CreateOrUpdateRect("FrameInner", x - 10, y - 10, 656, 376, C'255,0,200', C'255,0,200', 1, corner);
-        CreateOrUpdateRect("BG",         x - 8,  y - 8,  652, 372, C'10,2,16',  C'0,200,255', 1, corner);
+        // 1. Marcos y fondo sólido Cyberpunk (Altura ajustada +25px para Multi-Motor)
+        CreateOrUpdateRect("FrameOuter", x - 12, y - 12, 660, 405, C'0,240,255', C'0,240,255', 2, corner);
+        CreateOrUpdateRect("FrameInner", x - 10, y - 10, 656, 401, C'255,0,200', C'255,0,200', 1, corner);
+        CreateOrUpdateRect("BG",         x - 8,  y - 8,  652, 397, C'10,2,16',  C'0,200,255', 1, corner);
 
         // 2. Renderizar contenido inicial
         Update(0.0, 0.0, true, symbol);
@@ -110,7 +111,7 @@ public:
     }
 
     //------------------------------------------------------------------
-    // Actualiza los valores en vivo del Dashboard
+    // Actualiza los valores en vivo del Dashboard para CORTEX_MK6
     //------------------------------------------------------------------
     static void Update(
         double currentSpread = 0.0, 
@@ -119,6 +120,8 @@ public:
         string symbol = NULL,
         double tempestProximity = 0.0,
         string tempestDirection = "NONE",
+        double crtProximity = 0.0,
+        string crtDirection = "NONE",
         double bsVol = 16.0,
         double bsHours = 4.0,
         double bsMinProb = 40.0,
@@ -137,7 +140,7 @@ public:
         int corner = 0;
 
         // --- CABECERA PRINCIPAL ---
-        CreateOrUpdateLabel("Title", StringFormat("🏦 %s DESTRUCTIVE_CORE v%s", BOT_NAME, BOT_VERSION), x, y, 10, true, C'0,240,255', corner);
+        CreateOrUpdateLabel("Title", StringFormat("🏛️ %s", BOT_FULL_TITLE), x, y, 10, true, C'0,240,255', corner);
         CreateOrUpdateLabel("LogoText", "NECRO_SILVER", x + 510, y, 9, true, C'255,0,255', corner);
         y += lineHeight + 1;
 
@@ -188,8 +191,8 @@ public:
         CreateOrUpdateLabel("Div1", "------------------------------------------------------------------------------------------------------------", x, y, 8, false, C'0,200,255', corner);
         y += lineHeight + 2;
 
-        // --- SECCIÓN 2: MOTORES Y ESCUDOS DE SEGURIDAD ---
-        CreateOrUpdateLabel("Sec2_Header", StringFormat("[ 🛡️ ESCUDOS DE SEGURIDAD & MOTORES CORE v%s ]", BOT_VERSION), x, y, 9, true, C'255,0,255', corner);
+        // --- SECCIÓN 2: MOTORES CORE & ESCUDOS DE SEGURIDAD ---
+        CreateOrUpdateLabel("Sec2_Header", StringFormat("[ 🛡️ ESCUDOS DE SEGURIDAD & MOTORES CORE %s ]", BOT_VERSION), x, y, 9, true, C'255,0,255', corner);
         y += lineHeight + 2;
 
         // Telemetría Spread
@@ -204,16 +207,24 @@ public:
         CreateOrUpdateLabel("BSLive", bsLiveStr, x + 10, y, 8, true, (bsCurrentProb >= bsMinProb ? C'0,255,140' : C'255,200,0'), corner);
         y += lineHeight;
 
-        // Motor TEMPEST_MK5
+        // Motor TEMPEST_MK5 (M105)
         string tempestStr = StringFormat("[ TEMPEST_MK5  ] : %s %s | PROX: %.0f%% | BIAS: %s | BS_MK13: ✅",
                                          (isNewsLockout ? "BLOQUEADO" : "ACTIVO"),
-                                         (isNewsLockout ? "🔴" : "🟢"),
+                                         (isNewsLockout ? "🔴" : "🌐"),
                                          tempestProximity, tempestDirection);
         CreateOrUpdateLabel("EngineTempest", tempestStr, x + 10, y, 8, true, (isNewsLockout ? C'255,60,80' : C'0,255,140'), corner);
         y += lineHeight;
 
+        // Motor CRT_SNIPER_MK1 (M106)
+        string crtStr = StringFormat("[ CRT_SNIPER_MK1 ] : %s %s | PROX: %.0f%% | BIAS: %s | BS_MK13: ✅",
+                                     (isNewsLockout ? "BLOQUEADO" : "ACTIVO"),
+                                     (isNewsLockout ? "🔴" : "🎯"),
+                                     crtProximity, crtDirection);
+        CreateOrUpdateLabel("EngineCRT", crtStr, x + 10, y, 8, true, (isNewsLockout ? C'255,60,80' : C'0,240,255'), corner);
+        y += lineHeight;
+
         // Módulo SENTINEL_MK2 (Escudo de Noticias - Hora México UTC-6)
-        string sentinelStatus = isNewsLockout ? "BLOQUEO ACTIVO 🔴" : "SEGURO (OPERATIVO) 🟢";
+        string sentinelStatus = isNewsLockout ? "BLOQUEO ACTIVO 🔴" : "SEGURO (OPERATIVO) 🛡️";
         string cleanNewsName  = TruncateText(nextNewsName, 14);
         string newsInfoStr    = (hoursToNextNews < 12.0) ? StringFormat("%s @ %s", cleanNewsName, nextNewsCdmxTimeStr) : "Sin eventos < 12h";
         string sentinelStr    = StringFormat("[ SENTINEL_MK2 ] : %s | NOTICIA: %s", sentinelStatus, newsInfoStr);
@@ -231,6 +242,8 @@ public:
     static void Destroy()
     {
         ObjectsDeleteAll(0, HUD_PREFIX);
+        // Limpieza de prefijo antiguo por compatibilidad
+        ObjectsDeleteAll(0, "EV_HUD_");
         ChartRedraw(0);
     }
 };

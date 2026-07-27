@@ -1,6 +1,6 @@
 //+------------------------------------------------------------------+
 //|                                             StartupReport.mqh    |
-//|                                  Copyright 2026, EMPTY_VOID CORE |
+//|                                  Copyright 2026, CORTEX_MK6 CORE |
 //|                                                                  |
 //| DESCRIPCIÓN:                                                      |
 //| Generador de Reportes de Inicialización Estandarizados para el    |
@@ -9,7 +9,7 @@
 #ifndef STARTUP_REPORT_MQH
 #define STARTUP_REPORT_MQH
 
-#property copyright "Copyright 2026, EMPTY_VOID CORE"
+#property copyright "Copyright 2026, CORTEX_MK6 CORE"
 #property strict
 
 #include <EMPTY_VOID/Core/Config.mqh>
@@ -32,8 +32,8 @@ public:
         if(dd < 0) dd = 0.0;
 
         string pushMsg = StringFormat(
-            "🤖 ⚡ [EMPTY_VOID DESTRUCTIVE_CORE v2.2.0] SISTEMA ONLINE\n──────────────────────────────────\n👑 OPERADOR : NECRO_SILVER\n🪙 ACTIVO   : %s (Gold)\n💼 BALANCE  : $%.2f USD\n📈 EQUIDAD  : $%.2f USD (DD: %.2f%%)\n🧠 MOTORES  : TEMPEST_MK5 [ACTIVO 🟢]\n🛡️ ESCUDOS  : BS_MK13 [OK ✅] | SENTINEL_MK2 [OK 🟢]\n📰 NOTICIAS : %s\n──────────────────────────────────\nSTATUS : OPERATIVO Y VIGILANTE 🟢",
-            _Symbol, bal, eq, dd, newsStatusStr
+            "🤖 ⚡ [%s] SISTEMA ONLINE\n──────────────────────────────────\n👑 OPERADOR : NECRO_SILVER\n🪙 ACTIVO   : %s (Gold)\n💼 BALANCE  : $%.2f USD\n📈 EQUIDAD  : $%.2f USD (DD: %.2f%%)\n🧠 MOTORES  : TEMPEST_MK5 [OK 🟢] | CRT_SNIPER_MK1 [OK 🟢]\n🛡️ ESCUDOS  : BS_MK13 [OK ✅] | SENTINEL_MK2 [OK 🟢]\n📰 NOTICIAS : %s\n──────────────────────────────────\nSTATUS : OPERATIVO Y VIGILANTE 🟢",
+            BOT_FULL_TITLE, _Symbol, bal, eq, dd, newsStatusStr
         );
 
         ResetLastError();
@@ -54,7 +54,7 @@ public:
         string symbol    = _Symbol;
 
         Print("======================================================================");
-        PrintFormat("       [ %s DESTRUCTIVE_CORE v%s ]           ", BOT_NAME, BOT_VERSION);
+        PrintFormat("       [ %s ]           ", BOT_FULL_TITLE);
         Print("            SYSTEM INITIALIZED SUCCESSFULLY | CYBERPUNK EDITION       ");
         Print("======================================================================");
         PrintFormat(" Creador:           NECRO_SILVER");
@@ -63,6 +63,7 @@ public:
         PrintFormat(" Floating PnL Bot:  %s$%.2f USD", (floatPnL >= 0.0 ? "+" : ""), floatPnL);
         PrintFormat(" EA Drawdown Act.:  %.2f%%", drawdown);
         PrintFormat(" Posiciones Bot:    %d aberturas activas", openCount);
+        PrintFormat(" Motores Core:      [TEMPEST_MK5 (M105): ACTIVO] | [CRT_SNIPER_MK1 (M106): ACTIVO]");
         PrintFormat(" Escudo Cuant.:     [BLACK_SCHOLES_MK13: ACTIVO & OPERATIVO]");
         PrintFormat(" Escudo Noticias:   [SENTINEL_MK2: HORA MÉXICO UTC-6 ACTIVO]");
         PrintFormat(" Noticias Hoy:      %s", newsSum);

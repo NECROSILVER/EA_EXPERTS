@@ -1,16 +1,16 @@
 //+------------------------------------------------------------------+
 //|                                                  TradeAlerts.mqh |
-//|                                  Copyright 2026, EMPTY_VOID CORE |
+//|                                  Copyright 2026, CORTEX_MK6 CORE |
 //|                                                                  |
 //| DESCRIPCIÓN:                                                      |
 //| Notificador Estandarizado Institucional con Diseños Cyberpunk,   |
 //| Análisis de Slippage, Comparativa de Balance y Alertas Push      |
-//| Decoradas v2.2.0 (Bolsa de Dinero 💰 en Profit).                 |
+//| Decoradas v2.2.0 para CORTEX_MK6.                                |
 //+------------------------------------------------------------------+
 #ifndef TRADE_ALERTS_MQH
 #define TRADE_ALERTS_MQH
 
-#property copyright "Copyright 2026, EMPTY_VOID CORE"
+#property copyright "Copyright 2026, CORTEX_MK6 CORE"
 #property strict
 
 #include <EMPTY_VOID/Core/Config.mqh>
@@ -34,8 +34,8 @@ public:
             string orderEmoji   = (type == ORDER_TYPE_BUY) ? "🚀 🟢" : "🚀 🔴";
             
             string pushMsg = StringFormat(
-                "%s [EMPTY_VOID DESTRUCTIVE_CORE v2.2.0] NUEVA ORDEN (%s)\n──────────────────────────────────\n🎟️ TICKET   : #%I64u [%s]\n📊 OPERACION: %s | %s\n💰 ENTRADA  : %.2f Lotes @ $%.2f\n⚡ SLIPPAGE : %.1f pips\n🎯 SL / TP  : $%.2f / $%.2f\n📐 CUANT    : BS N(d2) %.1f%% | Tier %d\n💼 BALANCE  : $%.2f USD | EQ: $%.2f USD",
-                orderEmoji, (type == ORDER_TYPE_BUY ? "BUY" : "SELL"),
+                "%s [%s] NUEVA ORDEN (%s)\n──────────────────────────────────\n🎟️ TICKET   : #%I64u [%s]\n📊 OPERACION: %s | %s\n💰 ENTRADA  : %.2f Lotes @ $%.2f\n⚡ SLIPPAGE : %.1f pips\n🎯 SL / TP  : $%.2f / $%.2f\n📐 CUANT    : BS N(d2) %.1f%% | Tier %d\n💼 BALANCE  : $%.2f USD | EQ: $%.2f USD",
+                orderEmoji, BOT_FULL_TITLE, (type == ORDER_TYPE_BUY ? "BUY" : "SELL"),
                 ticket, tag, _Symbol, (type == ORDER_TYPE_BUY ? "COMPRA (BUY)" : "VENTA (SELL)"),
                 lot, realPrice, openSlippage, sl, tp, bsProb, bsTier,
                 AccountInfoDouble(ACCOUNT_BALANCE), AccountInfoDouble(ACCOUNT_EQUITY)
@@ -70,8 +70,8 @@ public:
             string netSign     = isProfit ? "+" : "";
             
             string pushMsg = StringFormat(
-                "%s [EMPTY_VOID DESTRUCTIVE_CORE v2.2.0] %s\n──────────────────────────────────\n🎟️ TICKET   : #%I64u | %s\n💵 PnL NETO : %s$%.2f USD (%+.2f%%)\n🎯 MOTIVO   : %s\n⚡ SLIPPAGE : %.1f pips\n📈 BALANCE  : $%.2f USD\n📉 EQUIDAD  : $%.2f USD",
-                headerEmoji, statusTitle,
+                "%s [%s] %s\n──────────────────────────────────\n🎟️ TICKET   : #%I64u | %s\n💵 PnL NETO : %s$%.2f USD (%+.2f%%)\n🎯 MOTIVO   : %s\n⚡ SLIPPAGE : %.1f pips\n📈 BALANCE  : $%.2f USD\n📉 EQUIDAD  : $%.2f USD",
+                headerEmoji, BOT_FULL_TITLE, statusTitle,
                 ticket, (type == ORDER_TYPE_BUY ? "COMPRA (BUY)" : "VENTA (SELL)"),
                 netSign, netPnL, netPct, closeReason, closeSlippage, currentBalance, AccountInfoDouble(ACCOUNT_EQUITY)
             );
@@ -94,8 +94,8 @@ public:
         if(enablePush)
         {
             string msg = StringFormat(
-                "🛡️ 🚨 [EMPTY_VOID DESTRUCTIVE_CORE v2.2.0] BLOQUEO DE SEGURIDAD\n──────────────────────────────────\n🛑 RAZON   : %s\n🔤 ACTIVO  : %s\n📊 LOSS HOY: -$%.2f USD (-%.2f%%)\n⚙️ ESTADO  : OPERATIVA INTERRUMPIDA",
-                reason, _Symbol, todayLossUSD, todayLossPct
+                "🛡️ 🚨 [%s] BLOQUEO DE SEGURIDAD\n──────────────────────────────────\n🛑 RAZON   : %s\n🔤 ACTIVO  : %s\n📊 LOSS HOY: -$%.2f USD (-%.2f%%)\n⚙️ ESTADO  : OPERATIVA INTERRUMPIDA",
+                BOT_FULL_TITLE, reason, _Symbol, todayLossUSD, todayLossPct
             );
             ResetLastError();
             SendNotification(msg);
@@ -106,7 +106,7 @@ public:
     {
         if(enablePush)
         {
-            string msg = StringFormat("ℹ️ [EMPTY_VOID v2.2.0]: %s", message);
+            string msg = StringFormat("ℹ️ [%s]: %s", BOT_FULL_TITLE, message);
             ResetLastError();
             SendNotification(msg);
         }

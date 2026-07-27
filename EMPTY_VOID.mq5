@@ -1,13 +1,13 @@
 //+------------------------------------------------------------------+
 //|                                                   EMPTY_VOID.mq5 |
-//|                     EMPTY_VOID DESTRUCTIVE_CORE v2.2.0           |
+//|                     CORTEX_MK6 DESTRUCTIVE_CORE v2.2.0           |
 //|                                     OPERADOR : NECRO_SILVER      |
 //+------------------------------------------------------------------+
-#property copyright "Copyright 2026, EMPTY_VOID CORE | NECRO_SILVER"
+#property copyright "Copyright 2026, CORTEX_MK6 CORE | NECRO_SILVER"
 #property link      "https://www.mql5.com"
 #property version   "2.20"
 #property strict
-#property description "  EMPTY_VOID DESTRUCTIVE_CORE v2.2.0"
+#property description "  CORTEX_MK6 DESTRUCTIVE_CORE v2.2.0"
 #property description "  OPERADOR: NECRO_SILVER"
 #property description "  MOTORES INTEGRADOS: TEMPEST MK5 (M105) & CRT SNIPER MK1 (M106)"
 #property description "  MÓDULO INTEGRADO: SENTINEL MK2 (Escudo Noticias 12H CDMX)"
@@ -101,7 +101,7 @@ void CloseAllBotPositions(string reason)
             ulong posMagic = (ulong)PositionGetInteger(POSITION_MAGIC);
             string posComm = PositionGetString(POSITION_COMMENT);
             
-            if(posSym == _Symbol && (CMagicNumberManager::IsEVTrade(posMagic) || StringFind(posComm, "EV_") >= 0))
+            if(posSym == _Symbol && (CMagicNumberManager::IsEVTrade(posMagic) || StringFind(posComm, "EV_") >= 0 || StringFind(posComm, "CTX_") >= 0))
             {
                 if(g_trade.PositionClose(ticket))
                 {
@@ -150,7 +150,7 @@ void ProcessEngineSignal(IEngine *engine, EngineSignal &signal)
         if(!isAllowed) return; // Bloqueo defensivo registrado en log
     }
 
-    // B. Asignar Magic Number dinámico y Comment Tag
+    // B. Asignar Magic Number dinámico y Comment Tag (CTX_)
     ulong magic = CMagicNumberManager::GetMagicNumber(engineId);
     g_trade.SetExpertMagicNumber(magic);
 
@@ -284,28 +284,28 @@ void OnTimer()
     double currentSpread = (double)SymbolInfoInteger(_Symbol, SYMBOL_SPREAD);
     bool isSpreadSafe = CVoidSecurityHub::CheckSpreadSafety(currentSpread, g_emaSpread, g_expansionStart, InpBsMaxSpreadMult);
 
-    EngineSignal currentSignal;
+    EngineSignal sigTempest;
     if(CheckPointer(EngineTempest) != POINTER_INVALID)
     {
-        currentSignal = EngineTempest.Evaluate();
-    }
-    if(!currentSignal.hasSignal && CheckPointer(EngineCRT) != POINTER_INVALID)
-    {
-        EngineSignal crtSig = EngineCRT.Evaluate();
-        if(crtSig.hasSignal || crtSig.proximityPct > currentSignal.proximityPct)
-        {
-            currentSignal = crtSig;
-        }
+        sigTempest = EngineTempest.Evaluate();
     }
 
-    // Cálculo de telemetría Black-Scholes MK13 para el gráfico
+    EngineSignal sigCRT;
+    if(CheckPointer(EngineCRT) != POINTER_INVALID)
+    {
+        sigCRT = EngineCRT.Evaluate();
+    }
+
+    // Identificar señal activa o dominante para telemetría Black-Scholes MK13
+    EngineSignal activeSignal = (sigCRT.hasSignal || sigCRT.proximityPct > sigTempest.proximityPct) ? sigCRT : sigTempest;
+
     double bsCurrentProb = 0.0;
     int bsTier = 0;
-    if(currentSignal.hasSignal || currentSignal.takeProfit > 0.0)
+    if(activeSignal.hasSignal || activeSignal.takeProfit > 0.0)
     {
-        double spot = (currentSignal.orderType == ORDER_TYPE_BUY) ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
-        CBlackScholesMK13::CalculateBSProbabilityToTarget(spot, currentSignal.takeProfit, InpBsTargetHours, InpBsAnnualVol, bsCurrentProb);
-        if(currentSignal.orderType == ORDER_TYPE_SELL) bsCurrentProb = 100.0 - bsCurrentProb;
+        double spot = (activeSignal.orderType == ORDER_TYPE_BUY) ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+        CBlackScholesMK13::CalculateBSProbabilityToTarget(spot, activeSignal.takeProfit, InpBsTargetHours, InpBsAnnualVol, bsCurrentProb);
+        if(activeSignal.orderType == ORDER_TYPE_SELL) bsCurrentProb = 100.0 - bsCurrentProb;
         bsTier = CVoidSecurityHub::GetTierFromProbability(bsCurrentProb);
     }
 
@@ -322,8 +322,10 @@ void OnTimer()
         g_emaSpread, 
         isSpreadSafe, 
         _Symbol, 
-        currentSignal.proximityPct, 
-        currentSignal.direction,
+        sigTempest.proximityPct, 
+        sigTempest.direction,
+        sigCRT.proximityPct,
+        sigCRT.direction,
         InpBsAnnualVol,
         InpBsTargetHours,
         InpBsMinProb,
@@ -424,7 +426,7 @@ void OnTradeTransaction(
                 ulong dealMagic = (ulong)HistoryDealGetInteger(dealTicket, DEAL_MAGIC);
                 string dealComm = HistoryDealGetString(dealTicket, DEAL_COMMENT);
 
-                if(dealSym == _Symbol && (CMagicNumberManager::IsEVTrade(dealMagic) || StringFind(dealComm, "EV_") >= 0))
+                if(dealSym == _Symbol && (CMagicNumberManager::IsEVTrade(dealMagic) || StringFind(dealComm, "EV_") >= 0 || StringFind(dealComm, "CTX_") >= 0))
                 {
                     // Limpieza de memoria de estado inicial usando el ticket de posición nativo trans.position
                     if(trans.position > 0)
