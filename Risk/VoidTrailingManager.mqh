@@ -47,7 +47,7 @@ public:
         if(point <= 0.0) point = 0.01;
 
         long stopsLevel = SymbolInfoInteger(symbol, SYMBOL_TRADE_STOPS_LEVEL);
-        double minStopDist = stopsLevel * point;
+        double minStopDist = (stopsLevel > 0) ? (stopsLevel * point) : 0.0;
 
         double askPrice = SymbolInfoDouble(symbol, SYMBOL_ASK);
         double bidPrice = SymbolInfoDouble(symbol, SYMBOL_BID);

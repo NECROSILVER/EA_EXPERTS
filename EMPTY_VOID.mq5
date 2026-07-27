@@ -353,10 +353,13 @@ void OnTradeTransaction(
 
                 if(dealSym == _Symbol && (CMagicNumberManager::IsEVTrade(dealMagic) || StringFind(dealComm, "EV_") >= 0))
                 {
-                    // Limpieza de memoria de estado inicial (Directiva 2)
+                    // Limpieza de memoria de estado inicial usando el ticket de posición nativo trans.position
+                    if(trans.position > 0)
+                    {
+                        CVoidState::DeleteState(StringFormat("InitProb_%I64u", trans.position));
+                    }
                     ulong dealPosID = (ulong)HistoryDealGetInteger(dealTicket, DEAL_POSITION_ID);
-                    CVoidState::DeleteState(StringFormat("InitProb_%I64u", dealPosID));
-                    CVoidState::DeleteState(StringFormat("InitProb_%I64u", dealTicket));
+                    if(dealPosID > 0) CVoidState::DeleteState(StringFormat("InitProb_%I64u", dealPosID));
 
                     double lot         = HistoryDealGetDouble(dealTicket, DEAL_VOLUME);
                     double realExit    = HistoryDealGetDouble(dealTicket, DEAL_PRICE);
