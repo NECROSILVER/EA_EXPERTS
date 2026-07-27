@@ -161,9 +161,13 @@ public:
     {
         string typeStr = (type == ORDER_TYPE_BUY) ? "BUY 🟢" : "SELL 🔴";
         double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
-        if(point <= 0) point = 0.01;
+        if(point <= 0.0) point = 0.01;
 
-        double slippagePips = (type == ORDER_TYPE_BUY) ? (realExitPrice - targetPrice) / point : (targetPrice - realExitPrice) / point;
+        double slippagePips = 0.0;
+        if(targetPrice > 0.0)
+        {
+            slippagePips = (type == ORDER_TYPE_BUY) ? (realExitPrice - targetPrice) / point : (targetPrice - realExitPrice) / point;
+        }
         string slippageTag = (slippagePips >= 0) ? "🟢 [A Favor]" : "🔴 [En Contra]";
         double netPnL = rawPnL + swapComm;
         double netPct = (prevBalance > 0) ? (netPnL / prevBalance) * 100.0 : 0.0;
@@ -205,7 +209,11 @@ public:
             string headerEmoji = isProfit ? "🏁 🟢" : "🏁 🔴";
             string statusTitle = isProfit ? "CIERRE EN GANANCIA" : "CIERRE EN PERDIDA";
             string netSignStr  = isProfit ? "+" : "";
-            double closeSlippage = (targetPrice > 0.0) ? MathAbs(targetPrice - realExitPrice) / point : 0.3;
+            double closeSlippage = 0.0;
+            if(targetPrice > 0.0)
+            {
+                closeSlippage = MathAbs(targetPrice - realExitPrice) / point;
+            }
             
             string defaultReason = isProfit ? "TRAILING STOP (1-σ)" : "STOP LOSS FIJO";
             string reasonText    = (closeReasonIn != "" && closeReasonIn != NULL) ? closeReasonIn : defaultReason;
