@@ -22,7 +22,7 @@ public:
     //------------------------------------------------------------------
     // Reporte de Inicio / Reinicio Push (Diseño 1: Terminal Quant Decorado)
     //------------------------------------------------------------------
-    static void SendReport(bool enablePush = true)
+    static void SendReport(bool enablePush = true, string newsStatusStr = "Sin eventos < 12h")
     {
         if(!enablePush) return;
 
@@ -32,14 +32,14 @@ public:
         if(dd < 0) dd = 0.0;
 
         string pushMsg = StringFormat(
-            "🤖 ⚡ [%s v2.2.0] SISTEMA ONLINE\n──────────────────────────────────\n👑 OPERADOR : NECRO_SILVER\n🪙 ACTIVO   : %s (Gold)\n💼 BALANCE  : $%.2f USD\n📈 EQUIDAD  : $%.2f USD (DD: %.2f%%)\n🧠 MOTORES  : TEMPEST_MK5 [ACTIVO 🟢]\n🛡️ ESCUDOS  : BS_MK13 [OK ✅] | SENTINEL [OK 🟢]\n📰 NOTICIAS : Filtro XAUUSD Activo\n──────────────────────────────────\nSTATUS : OPERATIVO Y VIGILANTE 🟢",
-            BOT_NAME, _Symbol, bal, eq, dd
+            "🤖 ⚡ [EMPTY_VOID DESTRUCTIVE_CORE v2.2.0] SISTEMA ONLINE\n──────────────────────────────────\n👑 OPERADOR : NECRO_SILVER\n🪙 ACTIVO   : %s (Gold)\n💼 BALANCE  : $%.2f USD\n📈 EQUIDAD  : $%.2f USD (DD: %.2f%%)\n🧠 MOTORES  : TEMPEST_MK5 [ACTIVO 🟢]\n🛡️ ESCUDOS  : BS_MK13 [OK ✅] | SENTINEL_MK2 [OK 🟢]\n📰 NOTICIAS : %s\n──────────────────────────────────\nSTATUS : OPERATIVO Y VIGILANTE 🟢",
+            _Symbol, bal, eq, dd, newsStatusStr
         );
 
         ResetLastError();
         if(!SendNotification(pushMsg))
         {
-            PrintFormat("❌ [%s PUSH ERROR]: Falló el envío de reporte de inicio. Código MT5: %d", BOT_NAME, GetLastError());
+            PrintFormat("❌ [PUSH ERROR]: Falló el envío de reporte de inicio. Código MT5: %d", GetLastError());
         }
     }
 
@@ -54,7 +54,7 @@ public:
         string symbol    = _Symbol;
 
         Print("======================================================================");
-        PrintFormat("                   [ %s EA CORE v%s ]                       ", BOT_NAME, BOT_VERSION);
+        PrintFormat("       [ %s DESTRUCTIVE_CORE v%s ]           ", BOT_NAME, BOT_VERSION);
         Print("            SYSTEM INITIALIZED SUCCESSFULLY | CYBERPUNK EDITION       ");
         Print("======================================================================");
         PrintFormat(" Creador:           NECRO_SILVER");
@@ -64,6 +64,7 @@ public:
         PrintFormat(" EA Drawdown Act.:  %.2f%%", drawdown);
         PrintFormat(" Posiciones Bot:    %d aberturas activas", openCount);
         PrintFormat(" Escudo Cuant.:     [BLACK_SCHOLES_MK13: ACTIVO & OPERATIVO]");
+        PrintFormat(" Escudo Noticias:   [SENTINEL_MK2: HORA MÉXICO UTC-6 ACTIVO]");
         PrintFormat(" Noticias Hoy:      %s", newsSum);
         Print("======================================================================");
     }

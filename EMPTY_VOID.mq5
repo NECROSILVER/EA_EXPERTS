@@ -209,7 +209,8 @@ void OnTimer()
     
     string nextNewsName = "Sin eventos < 12h";
     double hoursToNextNews = 99.0;
-    CVoidNewsWatcher::GetNextHighImpactNews(InpNewsPushAdvanceHours, nextNewsName, hoursToNextNews);
+    string nextNewsCdmxTime = "";
+    CVoidNewsWatcher::GetNextHighImpactNews(InpNewsPushAdvanceHours, nextNewsName, hoursToNextNews, nextNewsCdmxTime);
 
     CVoidDashboard::Update(
         currentSpread, 
@@ -225,7 +226,8 @@ void OnTimer()
         bsTier,
         isNewsLockout,
         nextNewsName,
-        hoursToNextNews
+        hoursToNextNews,
+        nextNewsCdmxTime
     );
     
     ChartRedraw(0);

@@ -3,9 +3,10 @@
 //|                                  Copyright 2026, EMPTY_VOID CORE |
 //|                                                                  |
 //| DESCRIPCIÓN:                                                      |
-//| Módulo SENTINEL_MK1: Escudo de Noticias Cuantitativo de Alto     |
-//| Impacto (USD) con Alerta Push Temprana a 12 Horas y             |
-//| Congelamiento Preventivo de Entrada para ORO (XAUUSD).           |
+//| Módulo SENTINEL_MK2: Escudo de Noticias Cuantitativo de Alto     |
+//| Impacto (USD) con Alerta Push Temprana a 12 Horas, Conversión a  |
+//| Hora Central de México (CDMX / UTC-6) y Congelamiento            |
+//| Preventivo de Entrada para ORO (XAUUSD).                         |
 //+------------------------------------------------------------------+
 #ifndef NEWS_WATCHER_MQH
 #define NEWS_WATCHER_MQH
@@ -19,6 +20,18 @@
 class CVoidNewsWatcher
 {
 public:
+    //------------------------------------------------------------------
+    // Conversión de hora GMT/Servidor a Hora de México (CDMX / UTC-6)
+    //------------------------------------------------------------------
+    static string FormatMexicoTime(datetime gmtTime)
+    {
+        // UTC-6 estático (Hora Central de México / CDMX)
+        datetime mexicoTime = gmtTime - (6 * 3600);
+        MqlDateTime dt;
+        TimeToStruct(mexicoTime, dt);
+        return StringFormat("%02d:%02d CDMX", dt.hour, dt.min);
+    }
+
     //------------------------------------------------------------------
     // Filtro atemporal para noticias clave de ORO (XAUUSD)
     //------------------------------------------------------------------
@@ -103,7 +116,7 @@ public:
     }
 
     //------------------------------------------------------------------
-    // 2. Escaneo y envío de Alerta Push Temprana (12 Horas) estilo Terminal Quant (Diseño 4)
+    // 2. Escaneo y envío de Alerta Push Temprana (12 Horas) estilo SENTINEL_MK2 (Diseño 4: Hora México UTC-6)
     //------------------------------------------------------------------
     static void ProcessAdvanceNewsPush(int advanceHours = 12, bool enablePush = true, int preMins = 30, int postMins = 30)
     {
@@ -138,25 +151,25 @@ public:
 
                                 if(!CVoidState::HasState(stateKey))
                                 {
-                                    string eventTimeStr = TimeToString(values[i].time, TIME_MINUTES);
+                                    string cdmxTimeStr  = FormatMexicoTime(values[i].time);
                                     double hoursToEvent = (double)(values[i].time - now) / 3600.0;
 
                                     if(enablePush)
                                     {
                                         string pushMsg = StringFormat(
-                                            "📰 🚨 [SENTINEL_MK1] ALERTA MACRO (XAUUSD)\n──────────────────────────────────\n📢 EVENTO   : %s\n🔥 IMPACTO  : 🔴 ALTO [Catalizador Oro]\n⏰ HORARIO  : %s (en %.1fh)\n🛡️ PROTOCOLO: LOCKOUT [-%dm / +%dm]\n💼 BALANCE  : $%.2f USD | EQ: $%.2f",
-                                            newsName, eventTimeStr, hoursToEvent, preMins, postMins, AccountInfoDouble(ACCOUNT_BALANCE), AccountInfoDouble(ACCOUNT_EQUITY)
+                                            "📰 🚨 [SENTINEL_MK2] ALERTA MACRO (XAUUSD)\n──────────────────────────────────\n📢 EVENTO   : %s\n🔥 IMPACTO  : 🔴 ALTO [Catalizador Oro]\n⏰ HORARIO  : %s (en %.1fh)\n🛡️ PROTOCOLO: LOCKOUT [-%dm / +%dm]\n💼 BALANCE  : $%.2f USD | EQ: $%.2f",
+                                            newsName, cdmxTimeStr, hoursToEvent, preMins, postMins, AccountInfoDouble(ACCOUNT_BALANCE), AccountInfoDouble(ACCOUNT_EQUITY)
                                         );
 
                                         ResetLastError();
                                         if(!SendNotification(pushMsg))
                                         {
-                                            PrintFormat("❌ [%s PUSH ERROR]: Falló envío Alerta Noticias 12h. Err: %d", BOT_NAME, GetLastError());
+                                            PrintFormat("❌ [PUSH ERROR]: Falló envío Alerta Noticias 12h. Err: %d", GetLastError());
                                         }
                                         else
                                         {
-                                            PrintFormat("📱 [%s SENTINEL_MK1]: Alerta Push 12h enviada con éxito para evento '%s' a las %s.",
-                                                        BOT_NAME, newsName, eventTimeStr);
+                                            PrintFormat("📱 [SENTINEL_MK2]: Alerta Push 12h enviada con éxito para evento '%s' a las %s.",
+                                                        newsName, cdmxTimeStr);
                                         }
                                     }
 
@@ -172,12 +185,13 @@ public:
     }
 
     //------------------------------------------------------------------
-    // 3. Obtiene la próxima noticia de ALTO impacto USD relevante para la telemetría
+    // 3. Obtiene la próxima noticia de ALTO impacto USD relevante para la telemetría (Con hora CDMX)
     //------------------------------------------------------------------
-    static bool GetNextHighImpactNews(int advanceHours, string &outName, double &outHoursLeft)
+    static bool GetNextHighImpactNews(int advanceHours, string &outName, double &outHoursLeft, string &outCdmxTimeStr)
     {
         outName = "Sin eventos < 12h";
         outHoursLeft = 99.0;
+        outCdmxTimeStr = "";
 
         datetime now = TimeCurrent();
         datetime endWindow = now + (advanceHours * 3600);
@@ -225,6 +239,7 @@ public:
         {
             outName = nearestName;
             outHoursLeft = (double)(nearestTime - now) / 3600.0;
+            outCdmxTimeStr = FormatMexicoTime(nearestTime);
             return true;
         }
 
@@ -234,15 +249,16 @@ public:
     //------------------------------------------------------------------
     // Retorna el resumen de noticias para StartupReport
     //------------------------------------------------------------------
-    static string GetTodayNewsSummary(int hoursAhead = 6)
+    static string GetTodayNewsSummary(int hoursAhead = 12)
     {
         string name = "";
         double hoursLeft = 0.0;
-        if(GetNextHighImpactNews(hoursAhead, name, hoursLeft))
+        string cdmxTimeStr = "";
+        if(GetNextHighImpactNews(hoursAhead, name, hoursLeft, cdmxTimeStr))
         {
-            return StringFormat("%s en %.1fh", name, hoursLeft);
+            return StringFormat("<%s a las %s (en %.1fh)>", name, cdmxTimeStr, hoursLeft);
         }
-        return StringFormat("Sin eventos (Alto) en las próximas %dh.", hoursAhead);
+        return "Sin eventos < 12h";
     }
 };
 

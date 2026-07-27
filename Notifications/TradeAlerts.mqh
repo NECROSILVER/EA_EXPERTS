@@ -5,8 +5,7 @@
 //| DESCRIPCIÓN:                                                      |
 //| Notificador Estandarizado Institucional con Diseños Cyberpunk,   |
 //| Análisis de Slippage, Comparativa de Balance y Alertas Push      |
-//| Decoradas de Alta Densidad Informativa (Sin Notificaciones       |
-//| Duplicadas).                                                     |
+//| Decoradas v2.2.0 (Bolsa de Dinero 💰 en Profit).                 |
 //+------------------------------------------------------------------+
 #ifndef TRADE_ALERTS_MQH
 #define TRADE_ALERTS_MQH
@@ -35,8 +34,8 @@ public:
             string orderEmoji   = (type == ORDER_TYPE_BUY) ? "🚀 🟢" : "🚀 🔴";
             
             string pushMsg = StringFormat(
-                "%s [%s v2.2.0] NUEVA ORDEN (%s)\n──────────────────────────────────\n🎟️ TICKET   : #%I64u [%s]\n📊 OPERACION: %s | %s\n💰 ENTRADA  : %.2f Lotes @ $%.2f\n⚡ SLIPPAGE : %.1f pips\n🎯 SL / TP  : $%.2f / $%.2f\n📐 CUANT    : BS N(d2) %.1f%% | Tier %d\n💼 BALANCE  : $%.2f USD | EQ: $%.2f USD",
-                orderEmoji, BOT_NAME, (type == ORDER_TYPE_BUY ? "BUY" : "SELL"),
+                "%s [EMPTY_VOID DESTRUCTIVE_CORE v2.2.0] NUEVA ORDEN (%s)\n──────────────────────────────────\n🎟️ TICKET   : #%I64u [%s]\n📊 OPERACION: %s | %s\n💰 ENTRADA  : %.2f Lotes @ $%.2f\n⚡ SLIPPAGE : %.1f pips\n🎯 SL / TP  : $%.2f / $%.2f\n📐 CUANT    : BS N(d2) %.1f%% | Tier %d\n💼 BALANCE  : $%.2f USD | EQ: $%.2f USD",
+                orderEmoji, (type == ORDER_TYPE_BUY ? "BUY" : "SELL"),
                 ticket, tag, _Symbol, (type == ORDER_TYPE_BUY ? "COMPRA (BUY)" : "VENTA (SELL)"),
                 lot, realPrice, openSlippage, sl, tp, bsProb, bsTier,
                 AccountInfoDouble(ACCOUNT_BALANCE), AccountInfoDouble(ACCOUNT_EQUITY)
@@ -47,7 +46,7 @@ public:
     }
 
     //------------------------------------------------------------------
-    // Notificación de Cierre de Operación Decorada (Diseño 3: Terminal Quant)
+    // Notificación de Cierre de Operación Decorada (Diseño 3A/3B: Profit 💰 🏁 🟢 vs Loss 🏁 🔴)
     //------------------------------------------------------------------
     static void NotifyTradeClose(
         ulong ticket, string tag, ENUM_ORDER_TYPE type, double lot,
@@ -61,19 +60,18 @@ public:
             double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
             if(point <= 0.0) point = 0.01;
             
-            // Protección contra dividendo por cero o precios nulos en ejecuciones manuales
             double closeSlippage = (targetPrice > 0.0) ? MathAbs(targetPrice - realExitPrice) / point : 0.0;
             double netPnL        = rawPnL + swapComm;
             double netPct        = (prevBalance > 0) ? (netPnL / prevBalance) * 100.0 : 0.0;
             
             bool isProfit       = (netPnL >= 0);
-            string headerEmoji = isProfit ? "🏁 🟢" : "🏁 🔴";
+            string headerEmoji = isProfit ? "💰 🏁 🟢" : "🏁 🔴";
             string statusTitle = isProfit ? "CIERRE EN GANANCIA" : "CIERRE EN PERDIDA";
             string netSign     = isProfit ? "+" : "";
             
             string pushMsg = StringFormat(
-                "%s [%s v2.2.0] %s\n──────────────────────────────────\n🎟️ TICKET   : #%I64u | %s\n💵 PnL NETO : %s$%.2f USD (%+.2f%%)\n🎯 MOTIVO   : %s\n⚡ SLIPPAGE : %.1f pips\n📈 BALANCE  : $%.2f USD\n📉 EQUIDAD  : $%.2f USD",
-                headerEmoji, BOT_NAME, statusTitle,
+                "%s [EMPTY_VOID DESTRUCTIVE_CORE v2.2.0] %s\n──────────────────────────────────\n🎟️ TICKET   : #%I64u | %s\n💵 PnL NETO : %s$%.2f USD (%+.2f%%)\n🎯 MOTIVO   : %s\n⚡ SLIPPAGE : %.1f pips\n📈 BALANCE  : $%.2f USD\n📉 EQUIDAD  : $%.2f USD",
+                headerEmoji, statusTitle,
                 ticket, (type == ORDER_TYPE_BUY ? "COMPRA (BUY)" : "VENTA (SELL)"),
                 netSign, netPnL, netPct, closeReason, closeSlippage, currentBalance, AccountInfoDouble(ACCOUNT_EQUITY)
             );
@@ -96,8 +94,8 @@ public:
         if(enablePush)
         {
             string msg = StringFormat(
-                "🛡️ 🚨 [%s v2.2.0] BLOQUEO DE SEGURIDAD\n──────────────────────────────────\n🛑 RAZON   : %s\n🔤 ACTIVO  : %s\n📊 LOSS HOY: -$%.2f USD (-%.2f%%)\n⚙️ ESTADO  : OPERATIVA INTERRUMPIDA",
-                BOT_NAME, reason, _Symbol, todayLossUSD, todayLossPct
+                "🛡️ 🚨 [EMPTY_VOID DESTRUCTIVE_CORE v2.2.0] BLOQUEO DE SEGURIDAD\n──────────────────────────────────\n🛑 RAZON   : %s\n🔤 ACTIVO  : %s\n📊 LOSS HOY: -$%.2f USD (-%.2f%%)\n⚙️ ESTADO  : OPERATIVA INTERRUMPIDA",
+                reason, _Symbol, todayLossUSD, todayLossPct
             );
             ResetLastError();
             SendNotification(msg);
@@ -108,7 +106,7 @@ public:
     {
         if(enablePush)
         {
-            string msg = StringFormat("ℹ️ [%s]: %s", BOT_NAME, message);
+            string msg = StringFormat("ℹ️ [EMPTY_VOID v2.2.0]: %s", message);
             ResetLastError();
             SendNotification(msg);
         }

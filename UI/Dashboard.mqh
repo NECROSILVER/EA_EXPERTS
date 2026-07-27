@@ -126,7 +126,8 @@ public:
         int bsTier = 0,
         bool isNewsLockout = false,
         string nextNewsName = "Sin eventos < 12h",
-        double hoursToNextNews = 99.0
+        double hoursToNextNews = 99.0,
+        string nextNewsCdmxTimeStr = ""
     )
     {
         string sym = (symbol == NULL || symbol == "") ? _Symbol : symbol;
@@ -211,11 +212,11 @@ public:
         CreateOrUpdateLabel("EngineTempest", tempestStr, x + 10, y, 8, true, (isNewsLockout ? C'255,60,80' : C'0,255,140'), corner);
         y += lineHeight;
 
-        // Módulo SENTINEL_MK1 (Escudo de Noticias)
+        // Módulo SENTINEL_MK2 (Escudo de Noticias - Hora México UTC-6)
         string sentinelStatus = isNewsLockout ? "BLOQUEO ACTIVO 🔴" : "SEGURO (OPERATIVO) 🟢";
-        string cleanNewsName  = TruncateText(nextNewsName, 15);
-        string newsInfoStr    = (hoursToNextNews < 12.0) ? StringFormat("%s (%.1fh)", cleanNewsName, hoursToNextNews) : "Sin eventos < 12h";
-        string sentinelStr    = StringFormat("[ SENTINEL_MK1 ] : %s | NOTICIA: %s", sentinelStatus, newsInfoStr);
+        string cleanNewsName  = TruncateText(nextNewsName, 14);
+        string newsInfoStr    = (hoursToNextNews < 12.0) ? StringFormat("%s @ %s", cleanNewsName, nextNewsCdmxTimeStr) : "Sin eventos < 12h";
+        string sentinelStr    = StringFormat("[ SENTINEL_MK2 ] : %s | NOTICIA: %s", sentinelStatus, newsInfoStr);
         color sentinelClr     = isNewsLockout ? C'255,60,80' : C'0,240,255';
         CreateOrUpdateLabel("ModuleSentinel", sentinelStr, x + 10, y, 8, true, sentinelClr, corner);
         y += lineHeight + 4;
