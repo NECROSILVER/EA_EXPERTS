@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "metatrader5": {
+      "url": "http://127.0.0.1:22346/mcp",
+      "apiKey": "mDMrkL3tNaGFSjGT9z6TJ8ecrYrTXmO06ukydke4oK",
+      "serverInfo": {
+        "name": "MetaTrader 5 MCP",
+        "version": "1.0",
+        "protocolVersion": "2025-06-18"
+      },
+      "status": "CONNECTED_AND_VERIFIED"
+    }
+  }
+}
