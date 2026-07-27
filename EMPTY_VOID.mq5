@@ -152,12 +152,7 @@ int OnInit()
     // Disparo de Alerta de Arranque ÚNICAMENTE si las 4 puertas de salud pasaron:
     if(isHealthOk)
     {
-        double balance  = AccountInfoDouble(ACCOUNT_BALANCE);
-        double equity   = AccountInfoDouble(ACCOUNT_EQUITY);
-        double drawdown = CVoidProfitTracker::GetBotDrawdownPct();
-        string newsSum  = CVoidNewsWatcher::GetTodayNewsSummary(6);
-
-        CVoidTradeAlerts::NotifyStartup(balance, equity, drawdown, newsSum, InpEnablePush);
+        CVoidStartupReport::SendReport(InpEnablePush);
     }
     else
     {
@@ -344,18 +339,16 @@ void OnTick()
 
             ulong dealTicket = g_trade.ResultOrder();
             CVoidTradeAlerts::NotifyTradeOpen(
-                TEMPEST_ENGINE_ID,
-                assignedTier,
-                signal.gridLevel,
+                dealTicket,
+                comment_tag,
                 signal.orderType,
                 finalLot,
+                signal.entryPrice,
                 signal.entryPrice,
                 signal.stopLoss,
                 signal.takeProfit,
                 bsProbSignal,
                 assignedTier,
-                signal.entryPrice,
-                dealTicket,
                 InpEnableAlerts,
                 InpEnablePush
             );
@@ -416,7 +409,7 @@ void OnTradeTransaction(
                         (swap + comm),
                         prevBal,
                         currentBal,
-                        "",
+                        "EJECUCION REGULAR",
                         InpEnableAlerts,
                         InpEnablePush
                     );

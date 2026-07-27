@@ -20,7 +20,7 @@ class CVoidNewsWatcher
 {
 public:
     //------------------------------------------------------------------
-    // Filtro estricto de noticias macro relevantes para el ORO (XAUUSD)
+    // Filtro atemporal para noticias clave de ORO (XAUUSD)
     //------------------------------------------------------------------
     static bool IsGoldRelevantNews(string newsName, ENUM_CALENDAR_EVENT_IMPORTANCE importance)
     {
@@ -29,6 +29,7 @@ public:
 
         if(importance < CALENDAR_IMPORTANCE_MODERATE) return false;
 
+        // Catalizadores directos del XAUUSD
         if(StringFind(upperName, "CPI") >= 0 || StringFind(upperName, "IPC") >= 0) return true;
         if(StringFind(upperName, "NFP") >= 0 || StringFind(upperName, "NON-FARM") >= 0) return true;
         if(StringFind(upperName, "PAYROLL") >= 0 || StringFind(upperName, "NOMINAS") >= 0) return true;
@@ -37,15 +38,18 @@ public:
         if(StringFind(upperName, "GDP") >= 0 || StringFind(upperName, "PIB") >= 0) return true;
         if(StringFind(upperName, "RETAIL SALES") >= 0 || StringFind(upperName, "VENTAS MINORISTAS") >= 0) return true;
         if(StringFind(upperName, "PPI") >= 0 || StringFind(upperName, "IPP") >= 0) return true;
-        if(StringFind(upperName, "POWELL") >= 0) return true;
         if(StringFind(upperName, "UNEMPLOYMENT") >= 0 || StringFind(upperName, "DESEMPLEO") >= 0) return true;
+
+        // Discursos e Intervenciones oficiales de la Fed (Atemporal)
+        if(StringFind(upperName, "FED CHAIR") >= 0 || StringFind(upperName, "SPEECH") >= 0 || 
+           StringFind(upperName, "TESTIMONY") >= 0 || StringFind(upperName, "POWELL") >= 0) return true;
 
         if(importance == CALENDAR_IMPORTANCE_HIGH)
         {
             if(StringFind(upperName, "ISM") >= 0 || StringFind(upperName, "PMI") >= 0) return true;
         }
 
-        return false;
+        return false; // Descarta noticias secundarias
     }
 
     //------------------------------------------------------------------
@@ -67,13 +71,17 @@ public:
             {
                 if(values[i].event_id <= 0 || values[i].time <= 0) continue;
 
-                MqlCalendarEvent event;
-                if(CalendarEventById(values[i].event_id, event))
+                ulong eventId = values[i].event_id;
+                MqlCalendarEvent eventStruct;
+                if(CalendarEventById(eventId, eventStruct))
                 {
-                    if(IsGoldRelevantNews(event.name, (ENUM_CALENDAR_EVENT_IMPORTANCE)event.importance))
+                    string newsName = eventStruct.name;
+                    ENUM_CALENDAR_EVENT_IMPORTANCE importance = (ENUM_CALENDAR_EVENT_IMPORTANCE)eventStruct.importance;
+
+                    if(IsGoldRelevantNews(newsName, importance))
                     {
                         MqlCalendarCountry country;
-                        if(CalendarCountryById(event.country_id, country))
+                        if(CalendarCountryById(eventStruct.country_id, country))
                         {
                             if(country.code == "US" || country.currency == "USD")
                             {
@@ -95,7 +103,7 @@ public:
     }
 
     //------------------------------------------------------------------
-    // 2. Escaneo y envío de Alerta Push Temprana (12 Horas) estilo Terminal Quant
+    // 2. Escaneo y envío de Alerta Push Temprana (12 Horas) estilo Terminal Quant (Diseño 4)
     //------------------------------------------------------------------
     static void ProcessAdvanceNewsPush(int advanceHours = 12, bool enablePush = true, int preMins = 30, int postMins = 30)
     {
@@ -112,30 +120,32 @@ public:
             {
                 if(values[i].time <= now || values[i].event_id <= 0) continue;
 
-                MqlCalendarEvent event;
-                if(CalendarEventById(values[i].event_id, event))
+                ulong eventId = values[i].event_id;
+                MqlCalendarEvent eventStruct;
+                if(CalendarEventById(eventId, eventStruct))
                 {
-                    if(IsGoldRelevantNews(event.name, (ENUM_CALENDAR_EVENT_IMPORTANCE)event.importance))
+                    string newsName = eventStruct.name;
+                    ENUM_CALENDAR_EVENT_IMPORTANCE importance = (ENUM_CALENDAR_EVENT_IMPORTANCE)eventStruct.importance;
+
+                    if(IsGoldRelevantNews(newsName, importance))
                     {
                         MqlCalendarCountry country;
-                        if(CalendarCountryById(event.country_id, country))
+                        if(CalendarCountryById(eventStruct.country_id, country))
                         {
                             if(country.code == "US" || country.currency == "USD")
                             {
-                                string stateKey = StringFormat("NewsNotified_%I64u", values[i].event_id);
+                                string stateKey = StringFormat("NewsNotified_%I64u", eventId);
 
                                 if(!CVoidState::HasState(stateKey))
                                 {
                                     string eventTimeStr = TimeToString(values[i].time, TIME_MINUTES);
-                                    double hoursLeft = (double)(values[i].time - now) / 3600.0;
+                                    double hoursToEvent = (double)(values[i].time - now) / 3600.0;
 
                                     if(enablePush)
                                     {
-                                        double bal = AccountInfoDouble(ACCOUNT_BALANCE);
-                                        double eq  = AccountInfoDouble(ACCOUNT_EQUITY);
                                         string pushMsg = StringFormat(
-                                            "📰 🚨 [SENTINEL_MK1] ALERTA MACRO (XAUUSD)\n──────────────────────────────────\n📢 EVENTO   : %s\n🔥 IMPACTO  : 🔴 ALTO [Catalizador Oro]\n⏰ HORARIO  : %s UTC (en %.1fh)\n🛡️ PROTOCOLO: LOCKOUT [-%dm / +%dm]\n💼 BALANCE  : $%.2f USD | EQ: $%.2f",
-                                            event.name, eventTimeStr, hoursLeft, preMins, postMins, bal, eq
+                                            "📰 🚨 [SENTINEL_MK1] ALERTA MACRO (XAUUSD)\n──────────────────────────────────\n📢 EVENTO   : %s\n🔥 IMPACTO  : 🔴 ALTO [Catalizador Oro]\n⏰ HORARIO  : %s (en %.1fh)\n🛡️ PROTOCOLO: LOCKOUT [-%dm / +%dm]\n💼 BALANCE  : $%.2f USD | EQ: $%.2f",
+                                            newsName, eventTimeStr, hoursToEvent, preMins, postMins, AccountInfoDouble(ACCOUNT_BALANCE), AccountInfoDouble(ACCOUNT_EQUITY)
                                         );
 
                                         ResetLastError();
@@ -146,7 +156,7 @@ public:
                                         else
                                         {
                                             PrintFormat("📱 [%s SENTINEL_MK1]: Alerta Push 12h enviada con éxito para evento '%s' a las %s.",
-                                                        BOT_NAME, event.name, eventTimeStr);
+                                                        BOT_NAME, newsName, eventTimeStr);
                                         }
                                     }
 
@@ -185,20 +195,24 @@ public:
             {
                 if(values[i].time <= now || values[i].event_id <= 0) continue;
 
-                MqlCalendarEvent event;
-                if(CalendarEventById(values[i].event_id, event))
+                ulong eventId = values[i].event_id;
+                MqlCalendarEvent eventStruct;
+                if(CalendarEventById(eventId, eventStruct))
                 {
-                    if(IsGoldRelevantNews(event.name, (ENUM_CALENDAR_EVENT_IMPORTANCE)event.importance))
+                    string newsName = eventStruct.name;
+                    ENUM_CALENDAR_EVENT_IMPORTANCE importance = (ENUM_CALENDAR_EVENT_IMPORTANCE)eventStruct.importance;
+
+                    if(IsGoldRelevantNews(newsName, importance))
                     {
                         MqlCalendarCountry country;
-                        if(CalendarCountryById(event.country_id, country))
+                        if(CalendarCountryById(eventStruct.country_id, country))
                         {
                             if(country.code == "US" || country.currency == "USD")
                             {
                                 if(nearestTime == 0 || values[i].time < nearestTime)
                                 {
                                     nearestTime = values[i].time;
-                                    nearestName = event.name;
+                                    nearestName = newsName;
                                 }
                             }
                         }

@@ -213,8 +213,8 @@ public:
 
         // Módulo SENTINEL_MK1 (Escudo de Noticias)
         string sentinelStatus = isNewsLockout ? "BLOQUEO ACTIVO 🔴" : "SEGURO (OPERATIVO) 🟢";
-        string truncatedNews  = TruncateText(nextNewsName, 15);
-        string newsInfoStr    = (hoursToNextNews < 12.0) ? StringFormat("%s en %.1fh", truncatedNews, hoursToNextNews) : "Sin eventos < 12h";
+        string cleanNewsName  = TruncateText(nextNewsName, 15);
+        string newsInfoStr    = (hoursToNextNews < 12.0) ? StringFormat("%s (%.1fh)", cleanNewsName, hoursToNextNews) : "Sin eventos < 12h";
         string sentinelStr    = StringFormat("[ SENTINEL_MK1 ] : %s | NOTICIA: %s", sentinelStatus, newsInfoStr);
         color sentinelClr     = isNewsLockout ? C'255,60,80' : C'0,240,255';
         CreateOrUpdateLabel("ModuleSentinel", sentinelStr, x + 10, y, 8, true, sentinelClr, corner);
