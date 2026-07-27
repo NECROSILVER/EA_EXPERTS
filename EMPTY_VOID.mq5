@@ -9,8 +9,8 @@
 #property strict
 #property description "  EMPTY_VOID DESTRUCTIVE_CORE v2.2.0"
 #property description "  OPERADOR: NECRO_SILVER"
-#property description "  MOTOR INTEGRADO: TEMPEST MK5 (IFVG & Multi-TF)"
-#property description "  MÓDULO INTEGRADO: SENTINEL MK1 (Escudo Noticias 12H)"
+#property description "  MOTORES INTEGRADOS: TEMPEST MK5 (M105) & CRT SNIPER MK1 (M106)"
+#property description "  MÓDULO INTEGRADO: SENTINEL MK2 (Escudo Noticias 12H CDMX)"
 
 #include <Trade/Trade.mqh>
 #include <EMPTY_VOID/Core/Config.mqh>
@@ -47,25 +47,36 @@ input bool     InpEnableQuantTrailing  = true;      // Habilitar Trailing Stop V
 input double   InpQuantTrailingAlpha   = 0.35;      // Multiplicador 1-Sigma (Alpha Factor)
 input double   InpTrailingStepPips     = 3.0;       // Paso Mínimo Trailing (Pips Anti-Spam)
 
-input group "=== ESCUDO DE NOTICIAS SENTINEL MK1 (USD) ==="
-input bool     InpNewsEnable           = true;      // Habilitar SENTINEL MK1
+input group "=== ESCUDO DE NOTICIAS SENTINEL MK2 (USD) ==="
+input bool     InpNewsEnable           = true;      // Habilitar SENTINEL MK2
 input int      InpNewsPrePauseMins     = 30;        // Minutos Antes de Noticia para Congelar
 input int      InpNewsPostPauseMins    = 30;        // Minutos Después de Noticia para Descongelar
-input int      InpNewsPushAdvanceHours = 12;        // Horas de Anticipación para Alerta Push (12h)
+input int      InpNewsPushAdvanceHours = 12;        // Horas de Anticipación para Alerta Push (12h CDMX)
 
-input group "=== MÓDULO MOTOR TEMPEST MK5 ==="
+input group "=== MÓDULO MOTOR TEMPEST MK5 (M105) ==="
 sinput string  tempest_settings        = "--- Ajustes Motor TEMPEST MK5 ---";
-input double   Inp_Tempest_RR          = 2.0;  // Relación Riesgo:Beneficio (Ej. 2.0 = 1:2)
-input int      Inp_Tempest_SL_Buffer   = 20;   // Margen de ticks para el Stop Loss
+input double   Inp_Tempest_RR          = 2.0;       // Relación Riesgo:Beneficio (Ej. 2.0 = 1:2)
+input int      Inp_Tempest_SL_Buffer   = 20;        // Margen de ticks para el Stop Loss
+
+input group "=== MÓDULO MOTOR CRT SNIPER MK1 (M106) ==="
+input double   Inp_CRT_RR              = 2.5;       // Ratio Riesgo/Beneficio (1:2.5)
+input int      Inp_CRT_SL_Buffer       = 20;        // Buffer de Stop Loss (Ticks)
+input double   Inp_CRT_Min_Sweep_USD   = 1.50;      // Barrido Mínimo ($XAUUSD)
+input double   Inp_CRT_Max_Sweep_USD   = 15.00;     // Barrido Máximo ($XAUUSD)
 
 input group "=== NOTIFICACIONES Y ALERTAS ==="
 input bool     InpEnableAlerts         = true;      // Habilitar Alertas Visuales en Pantalla
-input bool     InpEnablePush           = true;      // Habilitar Notificaciones Push MT5 (Por defecto TRUE)
+input bool     InpEnablePush           = true;      // Habilitar Notificaciones Push MT5
 
-// --- INCLUSIÓN DEL MOTOR TEMPEST MK5 ---
+// --- INCLUSIÓN DE MOTORES EN ARQUITECTURA MULTI-MOTOR ---
 #include <EMPTY_VOID/Engines/Engine_Tempest.mqh>
+#include <EMPTY_VOID/Engines/Engine_CRT.mqh>
+
 CEngine_Tempest *EngineTempest;
+CEngine_CRT     *EngineCRT;
+
 const int TEMPEST_ENGINE_ID = 105;
+const int CRT_ENGINE_ID     = 106;
 
 // Instancia del ejecutor nativo de órdenes
 CTrade   g_trade;
@@ -106,6 +117,82 @@ void CloseAllBotPositions(string reason)
     }
 }
 
+//------------------------------------------------------------------
+// Función Auxiliar de Procesamiento de Señal por Motor
+//------------------------------------------------------------------
+void ProcessEngineSignal(IEngine *engine, EngineSignal &signal)
+{
+    if(CheckPointer(engine) == POINTER_INVALID || !signal.hasSignal) return;
+
+    int engineId = engine.GetEngineId();
+    PrintFormat("⚡ [%s - %s (M%d)]: Nueva Señal Detectada | Dirección: %s | Entrada: %.2f | SL: %.2f | TP: %.2f | Prox: %.0f%%",
+                BOT_NAME, engine.GetEngineName(), engineId, signal.direction, signal.entryPrice, signal.stopLoss, signal.takeProfit, signal.proximityPct);
+
+    double finalLot = signal.baseLot;
+    int assignedTier = signal.tierLevel;
+
+    // A. Filtro Cuantitativo de Seguridad Black-Scholes MK13
+    if(InpBsEnabled)
+    {
+        bool isAllowed = CVoidSecurityHub::IsEntryAllowed(
+            signal.orderType,
+            signal.entryPrice,
+            signal.takeProfit,
+            InpBsAnnualVol,
+            InpBsTargetHours,
+            InpBsMinProb,
+            signal.baseLot,
+            finalLot,
+            assignedTier,
+            _Symbol
+        );
+
+        if(!isAllowed) return; // Bloqueo defensivo registrado en log
+    }
+
+    // B. Asignar Magic Number dinámico y Comment Tag
+    ulong magic = CMagicNumberManager::GetMagicNumber(engineId);
+    g_trade.SetExpertMagicNumber(magic);
+
+    string comment_tag = CCommentTagBuilder::BuildTag(engineId, assignedTier, signal.gridLevel);
+
+    // C. Ejecución de la orden
+    bool tradeSuccess = false;
+    if(signal.orderType == ORDER_TYPE_BUY) 
+    {
+        tradeSuccess = g_trade.Buy(finalLot, _Symbol, 0, signal.stopLoss, signal.takeProfit, comment_tag);
+    }
+    else if(signal.orderType == ORDER_TYPE_SELL) 
+    {
+        tradeSuccess = g_trade.Sell(finalLot, _Symbol, 0, signal.stopLoss, signal.takeProfit, comment_tag);
+    }
+
+    // D. Emisión de Notificación y Alerta de Entrada
+    if(tradeSuccess)
+    {
+        double bsProbSignal = 0.0;
+        double spotForBS = (signal.orderType == ORDER_TYPE_BUY) ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+        CBlackScholesMK13::CalculateBSProbabilityToTarget(spotForBS, signal.takeProfit, InpBsTargetHours, InpBsAnnualVol, bsProbSignal);
+        if(signal.orderType == ORDER_TYPE_SELL) bsProbSignal = 100.0 - bsProbSignal;
+
+        ulong dealTicket = g_trade.ResultOrder();
+        CVoidTradeAlerts::NotifyTradeOpen(
+            dealTicket,
+            comment_tag,
+            signal.orderType,
+            finalLot,
+            signal.entryPrice,
+            signal.entryPrice,
+            signal.stopLoss,
+            signal.takeProfit,
+            bsProbSignal,
+            assignedTier,
+            InpEnableAlerts,
+            InpEnablePush
+        );
+    }
+}
+
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
@@ -130,7 +217,7 @@ int OnInit()
     // 6. Imprimir Reporte Consolidado Banner de Inicialización en el Journal de MT5
     CVoidStartupReport::PrintStartupBanner();
 
-    // --- CHEQUEO DE SALUD DE 4 PUNTOS PARA DISPARO DE NOTIFICACIÓN ---
+    // --- CHEQUEO DE SALUD DE PUERTAS DE SALUD Y ARRANQUE MULTI-MOTOR ---
     bool isHealthOk = true;
 
     // Punto 1: Validación del Símbolo ORO
@@ -140,16 +227,21 @@ int OnInit()
     // Punto 2: Permisos de Trading en Bróker y Terminal
     if(!AccountInfoInteger(ACCOUNT_TRADE_ALLOWED) || !TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)) isHealthOk = false;
 
-    // Punto 3: Instanciación e Inicialización del Motor Tempest
+    // Punto 3: Instanciación e Inicialización del Motor Tempest (M105)
     EngineTempest = new CEngine_Tempest();
     if(!EngineTempest.Init(TEMPEST_ENGINE_ID, "TMPST_MK5")) isHealthOk = false;
 
-    // Punto 4: Escritura de Memoria Persistente CVoidState
+    // Punto 4: Instanciación e Inicialización del Motor CRT Sniper (M106 v6.0)
+    EngineCRT = new CEngine_CRT();
+    if(!EngineCRT.Init(CRT_ENGINE_ID, "CRT_SNIPER_MK1")) isHealthOk = false;
+    EngineCRT.SetParameters(Inp_CRT_RR, Inp_CRT_SL_Buffer, Inp_CRT_Min_Sweep_USD, Inp_CRT_Max_Sweep_USD);
+
+    // Punto 5: Escritura de Memoria Persistente CVoidState
     CVoidState::SetState("LastInitTime", (double)TimeCurrent());
-    CVoidState::SetState("BotVersion", 2.11);
+    CVoidState::SetState("BotVersion", 2.20);
     if(!CVoidState::HasState("LastInitTime")) isHealthOk = false;
 
-    // Disparo de Alerta de Arranque ÚNICAMENTE si las 4 puertas de salud pasaron:
+    // Disparo de Alerta de Arranque ÚNICAMENTE si las puertas de salud pasaron:
     if(isHealthOk)
     {
         CVoidStartupReport::SendReport(InpEnablePush);
@@ -176,7 +268,12 @@ void OnDeinit(const int reason)
         delete EngineTempest;
     }
     
-    PrintFormat("🧹 [%s]: Dashboard destruido, temporizador detenido y recursos liberados.", BOT_NAME);
+    if(CheckPointer(EngineCRT) != POINTER_INVALID) {
+        EngineCRT.OnDeinit();
+        delete EngineCRT;
+    }
+    
+    PrintFormat("🧹 [%s]: Dashboard destruido, temporizador detenido y recursos Multi-Motor liberados.", BOT_NAME);
 }
 
 //+------------------------------------------------------------------+
@@ -191,6 +288,14 @@ void OnTimer()
     if(CheckPointer(EngineTempest) != POINTER_INVALID)
     {
         currentSignal = EngineTempest.Evaluate();
+    }
+    if(!currentSignal.hasSignal && CheckPointer(EngineCRT) != POINTER_INVALID)
+    {
+        EngineSignal crtSig = EngineCRT.Evaluate();
+        if(crtSig.hasSignal || crtSig.proximityPct > currentSignal.proximityPct)
+        {
+            currentSignal = crtSig;
+        }
     }
 
     // Cálculo de telemetría Black-Scholes MK13 para el gráfico
@@ -252,7 +357,7 @@ void OnTick()
         return; // Bloqueo por Drawdown Diario Máximo
     }
 
-    // 1.5 Monitoreo y Escudo de Noticias SENTINEL MK1
+    // 1.5 Monitoreo y Escudo de Noticias SENTINEL MK2 (CDMX UTC-6)
     CVoidNewsWatcher::ProcessAdvanceNewsPush(InpNewsPushAdvanceHours, InpEnablePush, InpNewsPrePauseMins, InpNewsPostPauseMins);
     if(InpNewsEnable && CVoidNewsWatcher::IsNewsLockoutActive(InpNewsPrePauseMins, InpNewsPostPauseMins))
     {
@@ -270,7 +375,7 @@ void OnTick()
         }
     }
 
-    // 2.5 Gestión Cuantitativa Continua de Posiciones (Break Even & Trailing Stop Volátil)
+    // 2.5 Gestión Cuantitativa Continua de Posiciones (Break Even & Trailing Stop Volátil 1-Sigma)
     CVoidTrailingManager::ProcessQuantTrailing(
         g_trade,
         InpBsAnnualVol,
@@ -284,77 +389,17 @@ void OnTick()
         InpEnablePush
     );
 
-    // 3. EVALUACIÓN Y EJECUCIÓN DEL MOTOR TEMPEST MK5
-    EngineSignal signal = EngineTempest.Evaluate();
-
-    if(signal.hasSignal) 
+    // 3. EVALUACIÓN MULTI-MOTOR (TEMPEST M105 & CRT SNIPER M106)
+    if(CheckPointer(EngineTempest) != POINTER_INVALID)
     {
-        PrintFormat("⚡ [%s - TEMPEST MK5]: Nueva Señal Detectada | Dirección: %s | Precio Entrada: %.2f | SL: %.2f | TP: %.2f | Proximidad: %.0f%%",
-                    BOT_NAME, signal.direction, signal.entryPrice, signal.stopLoss, signal.takeProfit, signal.proximityPct);
+        EngineSignal sigTempest = EngineTempest.Evaluate();
+        ProcessEngineSignal(EngineTempest, sigTempest);
+    }
 
-        double finalLot = signal.baseLot;
-        int assignedTier = signal.tierLevel;
-
-        // A. Filtro Cuantitativo de Seguridad Black-Scholes MK13
-        if(InpBsEnabled)
-        {
-            bool isAllowed = CVoidSecurityHub::IsEntryAllowed(
-                signal.orderType,
-                signal.entryPrice,
-                signal.takeProfit,
-                InpBsAnnualVol,
-                InpBsTargetHours,
-                InpBsMinProb,
-                signal.baseLot,
-                finalLot,
-                assignedTier,
-                _Symbol
-            );
-
-            if(!isAllowed) return; // Bloqueo defensivo registrado en log
-        }
-
-        // B. Asignar Magic Number dinámico y Comment Tag
-        ulong magic = CMagicNumberManager::GetMagicNumber(TEMPEST_ENGINE_ID);
-        g_trade.SetExpertMagicNumber(magic);
-
-        string comment_tag = CCommentTagBuilder::BuildTag(TEMPEST_ENGINE_ID, assignedTier, signal.gridLevel);
-
-        // C. Ejecución de la orden
-        bool tradeSuccess = false;
-        if(signal.orderType == ORDER_TYPE_BUY) 
-        {
-            tradeSuccess = g_trade.Buy(finalLot, _Symbol, 0, signal.stopLoss, signal.takeProfit, comment_tag);
-        }
-        else if(signal.orderType == ORDER_TYPE_SELL) 
-        {
-            tradeSuccess = g_trade.Sell(finalLot, _Symbol, 0, signal.stopLoss, signal.takeProfit, comment_tag);
-        }
-
-        // D. Emisión de Notificación y Alerta de Entrada
-        if(tradeSuccess)
-        {
-            double bsProbSignal = 0.0;
-            double spotForBS = (signal.orderType == ORDER_TYPE_BUY) ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
-            CBlackScholesMK13::CalculateBSProbabilityToTarget(spotForBS, signal.takeProfit, InpBsTargetHours, InpBsAnnualVol, bsProbSignal);
-            if(signal.orderType == ORDER_TYPE_SELL) bsProbSignal = 100.0 - bsProbSignal;
-
-            ulong dealTicket = g_trade.ResultOrder();
-            CVoidTradeAlerts::NotifyTradeOpen(
-                dealTicket,
-                comment_tag,
-                signal.orderType,
-                finalLot,
-                signal.entryPrice,
-                signal.entryPrice,
-                signal.stopLoss,
-                signal.takeProfit,
-                bsProbSignal,
-                assignedTier,
-                InpEnableAlerts,
-                InpEnablePush
-            );
-        }
+    if(CheckPointer(EngineCRT) != POINTER_INVALID)
+    {
+        EngineSignal sigCRT = EngineCRT.Evaluate();
+        ProcessEngineSignal(EngineCRT, sigCRT);
     }
 }
 
