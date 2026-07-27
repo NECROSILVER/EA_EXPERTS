@@ -20,6 +20,35 @@ class CVoidNewsWatcher
 {
 public:
     //------------------------------------------------------------------
+    // Filtro estricto de noticias macro relevantes para el ORO (XAUUSD)
+    //------------------------------------------------------------------
+    static bool IsGoldRelevantNews(string newsName, ENUM_CALENDAR_EVENT_IMPORTANCE importance)
+    {
+        string upperName = newsName;
+        StringToUpper(upperName);
+
+        if(importance < CALENDAR_IMPORTANCE_MODERATE) return false;
+
+        if(StringFind(upperName, "CPI") >= 0 || StringFind(upperName, "IPC") >= 0) return true;
+        if(StringFind(upperName, "NFP") >= 0 || StringFind(upperName, "NON-FARM") >= 0) return true;
+        if(StringFind(upperName, "PAYROLL") >= 0 || StringFind(upperName, "NOMINAS") >= 0) return true;
+        if(StringFind(upperName, "FOMC") >= 0 || StringFind(upperName, "FED") >= 0) return true;
+        if(StringFind(upperName, "INTEREST RATE") >= 0 || StringFind(upperName, "TASA") >= 0) return true;
+        if(StringFind(upperName, "GDP") >= 0 || StringFind(upperName, "PIB") >= 0) return true;
+        if(StringFind(upperName, "RETAIL SALES") >= 0 || StringFind(upperName, "VENTAS MINORISTAS") >= 0) return true;
+        if(StringFind(upperName, "PPI") >= 0 || StringFind(upperName, "IPP") >= 0) return true;
+        if(StringFind(upperName, "POWELL") >= 0) return true;
+        if(StringFind(upperName, "UNEMPLOYMENT") >= 0 || StringFind(upperName, "DESEMPLEO") >= 0) return true;
+
+        if(importance == CALENDAR_IMPORTANCE_HIGH)
+        {
+            if(StringFind(upperName, "ISM") >= 0 || StringFind(upperName, "PMI") >= 0) return true;
+        }
+
+        return false;
+    }
+
+    //------------------------------------------------------------------
     // 1. Evalúa si el bloqueo defensivo por noticia (LOCKOUT) está activo
     //------------------------------------------------------------------
     static bool IsNewsLockoutActive(int preMins = 30, int postMins = 30)
@@ -41,7 +70,7 @@ public:
                 MqlCalendarEvent event;
                 if(CalendarEventById(values[i].event_id, event))
                 {
-                    if(event.importance == CALENDAR_IMPORTANCE_HIGH)
+                    if(IsGoldRelevantNews(event.name, (ENUM_CALENDAR_EVENT_IMPORTANCE)event.importance))
                     {
                         MqlCalendarCountry country;
                         if(CalendarCountryById(event.country_id, country))
@@ -66,9 +95,9 @@ public:
     }
 
     //------------------------------------------------------------------
-    // 2. Escaneo y envío de Alerta Push Temprana (12 Horas) al teléfono
+    // 2. Escaneo y envío de Alerta Push Temprana (12 Horas) estilo Terminal Quant
     //------------------------------------------------------------------
-    static void ProcessAdvanceNewsPush(int advanceHours = 12, bool enablePush = true)
+    static void ProcessAdvanceNewsPush(int advanceHours = 12, bool enablePush = true, int preMins = 30, int postMins = 30)
     {
         datetime now = TimeCurrent();
         datetime endWindow = now + (advanceHours * 3600);
@@ -86,7 +115,7 @@ public:
                 MqlCalendarEvent event;
                 if(CalendarEventById(values[i].event_id, event))
                 {
-                    if(event.importance == CALENDAR_IMPORTANCE_HIGH)
+                    if(IsGoldRelevantNews(event.name, (ENUM_CALENDAR_EVENT_IMPORTANCE)event.importance))
                     {
                         MqlCalendarCountry country;
                         if(CalendarCountryById(event.country_id, country))
@@ -102,9 +131,11 @@ public:
 
                                     if(enablePush)
                                     {
+                                        double bal = AccountInfoDouble(ACCOUNT_BALANCE);
+                                        double eq  = AccountInfoDouble(ACCOUNT_EQUITY);
                                         string pushMsg = StringFormat(
-                                            "📰 [SENTINEL_MK1 | ALERTA 12H]\nEvento USD: %s\nHora Programada: %s (en %.1fh)\nPrepara capital y posiciones.",
-                                            event.name, eventTimeStr, hoursLeft
+                                            "📰 🚨 [SENTINEL_MK1] ALERTA MACRO (XAUUSD)\n──────────────────────────────────\n📢 EVENTO   : %s\n🔥 IMPACTO  : 🔴 ALTO [Catalizador Oro]\n⏰ HORARIO  : %s UTC (en %.1fh)\n🛡️ PROTOCOLO: LOCKOUT [-%dm / +%dm]\n💼 BALANCE  : $%.2f USD | EQ: $%.2f",
+                                            event.name, eventTimeStr, hoursLeft, preMins, postMins, bal, eq
                                         );
 
                                         ResetLastError();
@@ -131,7 +162,7 @@ public:
     }
 
     //------------------------------------------------------------------
-    // 3. Obtiene la próxima noticia de ALTO impacto USD para la telemetría
+    // 3. Obtiene la próxima noticia de ALTO impacto USD relevante para la telemetría
     //------------------------------------------------------------------
     static bool GetNextHighImpactNews(int advanceHours, string &outName, double &outHoursLeft)
     {
@@ -157,7 +188,7 @@ public:
                 MqlCalendarEvent event;
                 if(CalendarEventById(values[i].event_id, event))
                 {
-                    if(event.importance == CALENDAR_IMPORTANCE_HIGH)
+                    if(IsGoldRelevantNews(event.name, (ENUM_CALENDAR_EVENT_IMPORTANCE)event.importance))
                     {
                         MqlCalendarCountry country;
                         if(CalendarCountryById(event.country_id, country))

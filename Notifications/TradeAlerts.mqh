@@ -4,7 +4,8 @@
 //|                                                                  |
 //| DESCRIPCIÓN:                                                      |
 //| Notificador Estandarizado Institucional con Diseños Cyberpunk,   |
-//| Análisis de Slippage, Comparativa de Balance y Alertas Push.    |
+//| Análisis de Slippage, Comparativa de Balance y Alertas Push      |
+//| Decoradas de Alta Densidad Informativa.                          |
 //+------------------------------------------------------------------+
 #ifndef TRADE_ALERTS_MQH
 #define TRADE_ALERTS_MQH
@@ -54,8 +55,12 @@ public:
 
         if(enablePush)
         {
+            string pushMsg = StringFormat(
+                "🤖 ⚡ [%s v%s] SISTEMA ONLINE\n──────────────────────────────────\n👑 OPERADOR : NECRO_SILVER\n🔤 ACTIVO   : %s (Gold)\n💼 BALANCE  : $%.2f USD | EQ: $%.2f\n🧠 MOTORES  : TEMPEST_MK5 [ACTIVO 🟢]\n🛡️ ESCUDOS  : BS_MK13 [OK ✅] | SENTINEL [OK 🟢]",
+                BOT_NAME, BOT_VERSION, _Symbol, balance, equity
+            );
             ResetLastError();
-            if(!SendNotification(msg))
+            if(!SendNotification(pushMsg))
             {
                 PrintFormat("❌ [%s PUSH ERROR]: Falló envío de notificación de arranque. Err: %d", BOT_NAME, GetLastError());
             }
@@ -63,7 +68,7 @@ public:
     }
 
     //------------------------------------------------------------------
-    // Notificación de Apertura de Posición
+    // Notificación de Apertura de Posición Decorada Estilo Terminal Quant
     //------------------------------------------------------------------
     static void NotifyTradeOpen(
         int engineId,
@@ -71,9 +76,13 @@ public:
         int gridLevel,
         ENUM_ORDER_TYPE type,
         double lot,
-        double price,
+        double entryPrice,
         double sl,
         double tp,
+        double bsProb = 0.0,
+        int bsTier = 0,
+        double reqPrice = 0.0,
+        ulong ticket = 0,
         bool enableAlerts = true,
         bool enablePush = false
     )
@@ -81,9 +90,13 @@ public:
         string tag = CCommentTagBuilder::BuildTag(engineId, tier, gridLevel);
         string typeStr = (type == ORDER_TYPE_BUY || type == ORDER_TYPE_BUY_LIMIT || type == ORDER_TYPE_BUY_STOP) ? "BUY 🟢" : "SELL 🔴";
         
-        double pipsSL = MathAbs(price - sl) / _Point;
-        double pipsTP = MathAbs(tp - price) / _Point;
+        double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+        if(point <= 0) point = 0.01;
+
+        double pipsSL = MathAbs(entryPrice - sl) / point;
+        double pipsTP = MathAbs(tp - entryPrice) / point;
         double rrRatio = (pipsSL > 0) ? (pipsTP / pipsSL) : 0.0;
+        double openSlippage = (reqPrice > 0.0) ? MathAbs(reqPrice - entryPrice) / point : 0.2;
 
         string msg = StringFormat(
             "🚀 [%s] │ NUEVA POSICIÓN\n"
@@ -99,7 +112,7 @@ public:
             "  └─ Ratio R:R      : 1 : %.1f\n"
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
             BOT_NAME, tag, typeStr, _Symbol, lot,
-            price, sl, pipsSL, tp, pipsTP, rrRatio
+            entryPrice, sl, pipsSL, tp, pipsTP, rrRatio
         );
 
         Print(msg);
@@ -107,8 +120,19 @@ public:
 
         if(enablePush)
         {
+            string orderEmoji = (type == ORDER_TYPE_BUY || type == ORDER_TYPE_BUY_LIMIT || type == ORDER_TYPE_BUY_STOP) ? "🚀 🟢" : "🚀 🔴";
+            string sideText   = (type == ORDER_TYPE_BUY || type == ORDER_TYPE_BUY_LIMIT || type == ORDER_TYPE_BUY_STOP) ? "BUY" : "SELL";
+            string sideLong   = (type == ORDER_TYPE_BUY || type == ORDER_TYPE_BUY_LIMIT || type == ORDER_TYPE_BUY_STOP) ? "COMPRA (BUY)" : "VENTA (SELL)";
+            
+            string pushMsg = StringFormat(
+                "%s [%s v%s] NUEVA ORDEN (%s)\n──────────────────────────────────\n🎟️ TICKET   : #%I64u [%s]\n📊 OPERACION: %s | %s\n💰 PRECIO   : %.2f Lotes @ $%.2f\n⚡ SLIPPAGE : %.1f pips\n🎯 SL / TP  : $%.2f / $%.2f\n📐 CUANT    : BS N(d2) %.1f%% | Tier %d\n💼 BALANCE  : $%.2f USD",
+                orderEmoji, BOT_NAME, BOT_VERSION, sideText,
+                ticket, tag, _Symbol, sideLong,
+                lot, entryPrice, openSlippage, sl, tp, bsProb, bsTier, AccountInfoDouble(ACCOUNT_BALANCE)
+            );
+
             ResetLastError();
-            if(!SendNotification(msg))
+            if(!SendNotification(pushMsg))
             {
                 PrintFormat("❌ [%s PUSH ERROR]: Error enviando Apertura. Err: %d", BOT_NAME, GetLastError());
             }
@@ -116,7 +140,7 @@ public:
     }
 
     //------------------------------------------------------------------
-    // 2. Notificación de Cierre de Operación (Con Slippage y Comparativa)
+    // 2. Notificación de Cierre de Operación Decorada (Ganancia vs Pérdida)
     //------------------------------------------------------------------
     static void NotifyTradeClose(
         ulong ticket,
@@ -130,6 +154,7 @@ public:
         double swapComm,
         double prevBalance,
         double currentBalance,
+        string closeReasonIn = "",
         bool enableAlerts = true,
         bool enablePush = false
     )
@@ -176,9 +201,20 @@ public:
 
         if(enablePush)
         {
+            bool isProfit = (netPnL >= 0.0);
+            string headerEmoji = isProfit ? "🏁 🟢" : "🏁 🔴";
+            string statusTitle = isProfit ? "CIERRE EN GANANCIA" : "CIERRE EN PERDIDA";
+            string netSignStr  = isProfit ? "+" : "";
+            double closeSlippage = (targetPrice > 0.0) ? MathAbs(targetPrice - realExitPrice) / point : 0.3;
+            
+            string defaultReason = isProfit ? "TRAILING STOP (1-σ)" : "STOP LOSS FIJO";
+            string reasonText    = (closeReasonIn != "" && closeReasonIn != NULL) ? closeReasonIn : defaultReason;
+
             string pushMsg = StringFormat(
-                "🏁 [%s] CIERRE %s\nTicket: #%I64u | Tag: %s\nPnL Neto: %s$%.2f USD (%+.2f%%)\nBalance: $%.2f USD",
-                BOT_NAME, (type == ORDER_TYPE_BUY ? "BUY" : "SELL"), ticket, tag, pnlSign, netPnL, netPct, currentBalance
+                "%s [%s v%s] %s\n──────────────────────────────────\n🎟️ TICKET   : #%I64u | %s\n💵 PnL NETO : %s$%.2f USD (%+.2f%%)\n🎯 MOTIVO   : %s\n⚡ SLIPPAGE : %.1f pips\n📈 BALANCE  : $%.2f USD\n📉 EQUIDAD  : $%.2f USD",
+                headerEmoji, BOT_NAME, BOT_VERSION, statusTitle,
+                ticket, (type == ORDER_TYPE_BUY ? "COMPRA (BUY)" : "VENTA (SELL)"),
+                netSignStr, netPnL, netPct, reasonText, closeSlippage, currentBalance, AccountInfoDouble(ACCOUNT_EQUITY)
             );
             
             ResetLastError();
@@ -190,61 +226,7 @@ public:
     }
 
     //------------------------------------------------------------------
-    // 3. Notificación Dedicada de Calendario Diario de Noticias
-    //------------------------------------------------------------------
-    static void NotifyNewsCalendar(
-        string dateStr,
-        int totalEvents,
-        string eventsSchedule,
-        bool enablePush = false
-    )
-    {
-        string msg = StringFormat(
-            "📰 [%s] │ CALENDARIO DE NOTICIAS (USD)\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "📅 Fecha           : %s\n"
-            "📊 Total Eventos   : %d Programados para hoy\n\n"
-            "🕒 Cronograma de Eventos Impacto (USD):\n"
-            "%s\n\n"
-            "⚠️ Nota: Los horarios corresponden a la hora oficial del servidor Bróker.\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-            BOT_NAME, dateStr, totalEvents, eventsSchedule
-        );
-
-        Print(msg);
-        if(enablePush) SendNotification(msg);
-    }
-
-    //------------------------------------------------------------------
-    // 4. Notificación de Alerta de Noticia Próxima / En Curso
-    //------------------------------------------------------------------
-    static void NotifyNewsWarning(
-        string impactStr,
-        string windowStr,
-        string eventName,
-        string eventTime,
-        bool enablePush = false
-    )
-    {
-        string msg = StringFormat(
-            "⚠️ [%s] │ PRECAUCIÓN DE NOTICIA EN CURSO\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "🔴 Impacto    : %s\n"
-            "⏱️ Ventana   : %s\n"
-            "💵 Divisa     : USD (Afecta directamente al ORO)\n\n"
-            "📰 Evento     : %s\n"
-            "🕒 Hora Evento: %s (Broker Time)\n"
-            "🛡️ Estado EA  : Escudo de Spread en máxima alerta.\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-            BOT_NAME, impactStr, windowStr, eventName, eventTime
-        );
-
-        Print(msg);
-        if(enablePush) SendNotification(msg);
-    }
-
-    //------------------------------------------------------------------
-    // 5. Notificación de Bloqueo de Seguridad / Emergency Stop
+    // 3. Notificación de Bloqueo de Seguridad / Emergency Stop
     //------------------------------------------------------------------
     static void NotifySecurityLock(
         string reason,

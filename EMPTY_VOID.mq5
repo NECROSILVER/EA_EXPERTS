@@ -209,7 +209,7 @@ void OnTimer()
         bsTier = CVoidSecurityHub::GetTierFromProbability(bsCurrentProb);
     }
 
-    CVoidNewsWatcher::ProcessAdvanceNewsPush(InpNewsPushAdvanceHours, InpEnablePush);
+    CVoidNewsWatcher::ProcessAdvanceNewsPush(InpNewsPushAdvanceHours, InpEnablePush, InpNewsPrePauseMins, InpNewsPostPauseMins);
     bool isNewsLockout = InpNewsEnable && CVoidNewsWatcher::IsNewsLockoutActive(InpNewsPrePauseMins, InpNewsPostPauseMins);
     
     string nextNewsName = "Sin eventos < 12h";
@@ -256,7 +256,7 @@ void OnTick()
     }
 
     // 1.5 Monitoreo y Escudo de Noticias SENTINEL MK1
-    CVoidNewsWatcher::ProcessAdvanceNewsPush(InpNewsPushAdvanceHours, InpEnablePush);
+    CVoidNewsWatcher::ProcessAdvanceNewsPush(InpNewsPushAdvanceHours, InpEnablePush, InpNewsPrePauseMins, InpNewsPostPauseMins);
     if(InpNewsEnable && CVoidNewsWatcher::IsNewsLockoutActive(InpNewsPrePauseMins, InpNewsPostPauseMins))
     {
         return; // Bloqueo defensivo preventivo por noticia USD de ALTO impacto (LOCKOUT_NEWS)
@@ -337,6 +337,12 @@ void OnTick()
         // D. Emisión de Notificación y Alerta de Entrada
         if(tradeSuccess)
         {
+            double bsProbSignal = 0.0;
+            double spotForBS = (signal.orderType == ORDER_TYPE_BUY) ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+            CBlackScholesMK13::CalculateBSProbabilityToTarget(spotForBS, signal.takeProfit, InpBsTargetHours, InpBsAnnualVol, bsProbSignal);
+            if(signal.orderType == ORDER_TYPE_SELL) bsProbSignal = 100.0 - bsProbSignal;
+
+            ulong dealTicket = g_trade.ResultOrder();
             CVoidTradeAlerts::NotifyTradeOpen(
                 TEMPEST_ENGINE_ID,
                 assignedTier,
@@ -346,6 +352,10 @@ void OnTick()
                 signal.entryPrice,
                 signal.stopLoss,
                 signal.takeProfit,
+                bsProbSignal,
+                assignedTier,
+                signal.entryPrice,
+                dealTicket,
                 InpEnableAlerts,
                 InpEnablePush
             );
@@ -379,7 +389,7 @@ void OnTradeTransaction(
                     // Limpieza de memoria de estado inicial usando el ticket de posición nativo trans.position
                     if(trans.position > 0)
                     {
-                        CVoidState::DeleteState(StringFormat("InitProb_%I64u", trans.position));
+                        CVoidState::DeleteState(StringFormat("InitProb_%I64u", (ulong)trans.position));
                     }
                     ulong dealPosID = (ulong)HistoryDealGetInteger(dealTicket, DEAL_POSITION_ID);
                     if(dealPosID > 0) CVoidState::DeleteState(StringFormat("InitProb_%I64u", dealPosID));
@@ -406,6 +416,7 @@ void OnTradeTransaction(
                         (swap + comm),
                         prevBal,
                         currentBal,
+                        "",
                         InpEnableAlerts,
                         InpEnablePush
                     );

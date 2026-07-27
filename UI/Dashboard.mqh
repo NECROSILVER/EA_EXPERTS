@@ -23,6 +23,13 @@
 class CVoidDashboard
 {
 private:
+    // Auxiliar de truncado de texto para evitar recortes en el HUD
+    static string TruncateText(string text, int maxLen = 15)
+    {
+        if(StringLen(text) <= maxLen) return text;
+        return StringSubstr(text, 0, maxLen - 2) + "..";
+    }
+
     // Auxiliar para crear o actualizar rectángulos de fondo
     static void CreateOrUpdateRect(
         string name, 
@@ -206,9 +213,10 @@ public:
 
         // Módulo SENTINEL_MK1 (Escudo de Noticias)
         string sentinelStatus = isNewsLockout ? "BLOQUEO ACTIVO 🔴" : "SEGURO (OPERATIVO) 🟢";
-        string newsInfoStr = (hoursToNextNews < 12.0) ? StringFormat("%s en %.1fh", nextNewsName, hoursToNextNews) : "Sin eventos < 12h";
-        string sentinelStr = StringFormat("[ SENTINEL_MK1 ] : %s | NOTICIA: %s", sentinelStatus, newsInfoStr);
-        color sentinelClr = isNewsLockout ? C'255,60,80' : C'0,240,255';
+        string truncatedNews  = TruncateText(nextNewsName, 15);
+        string newsInfoStr    = (hoursToNextNews < 12.0) ? StringFormat("%s en %.1fh", truncatedNews, hoursToNextNews) : "Sin eventos < 12h";
+        string sentinelStr    = StringFormat("[ SENTINEL_MK1 ] : %s | NOTICIA: %s", sentinelStatus, newsInfoStr);
+        color sentinelClr     = isNewsLockout ? C'255,60,80' : C'0,240,255';
         CreateOrUpdateLabel("ModuleSentinel", sentinelStr, x + 10, y, 8, true, sentinelClr, corner);
         y += lineHeight + 4;
 
