@@ -99,10 +99,10 @@ public:
     //------------------------------------------------------------------
     static bool Init(string symbol = NULL, int corner = 0, int x = 15, int y = 25)
     {
-        // 1. Marcos y fondo sólido Cyberpunk (Altura ajustada +25px para Multi-Motor)
-        CreateOrUpdateRect("FrameOuter", x - 12, y - 12, 660, 405, C'0,240,255', C'0,240,255', 2, corner);
-        CreateOrUpdateRect("FrameInner", x - 10, y - 10, 656, 401, C'255,0,200', C'255,0,200', 1, corner);
-        CreateOrUpdateRect("BG",         x - 8,  y - 8,  652, 397, C'10,2,16',  C'0,200,255', 1, corner);
+        // 1. Marcos y fondo sólido Cyberpunk (Dimensiones ampliadas 680x425px para espacio holgado Multi-Motor)
+        CreateOrUpdateRect("FrameOuter", x - 12, y - 12, 680, 425, C'0,240,255', C'0,240,255', 2, corner);
+        CreateOrUpdateRect("FrameInner", x - 10, y - 10, 676, 421, C'255,0,200', C'255,0,200', 1, corner);
+        CreateOrUpdateRect("BG",         x - 8,  y - 8,  672, 417, C'10,2,16',  C'0,200,255', 1, corner);
 
         // 2. Renderizar contenido inicial
         Update(0.0, 0.0, true, symbol);
@@ -136,12 +136,12 @@ public:
         string sym = (symbol == NULL || symbol == "") ? _Symbol : symbol;
         int x = 15;
         int y = 25;
-        int lineHeight = 16;
+        int lineHeight = 17;
         int corner = 0;
 
         // --- CABECERA PRINCIPAL ---
         CreateOrUpdateLabel("Title", StringFormat("🏛️ %s", BOT_FULL_TITLE), x, y, 10, true, C'0,240,255', corner);
-        CreateOrUpdateLabel("LogoText", "NECRO_SILVER", x + 510, y, 9, true, C'255,0,255', corner);
+        CreateOrUpdateLabel("LogoText", "NECRO_SILVER", x + 530, y, 9, true, C'255,0,255', corner);
         y += lineHeight + 1;
 
         CreateOrUpdateLabel("Creator", "👤 CREADOR: NECRO_SILVER | SÍMBOLO: " + sym, x, y, 9, true, C'255,0,255', corner);
@@ -166,7 +166,7 @@ public:
         CreateOrUpdateLabel("BalEq", balStr, x + 10, y, 8, true, C'0,240,255', corner);
 
         string openStr = StringFormat("Posiciones Bot: %d activas", openCount);
-        CreateOrUpdateLabel("OpenCount", openStr, x + 380, y, 8, true, C'0,255,140', corner);
+        CreateOrUpdateLabel("OpenCount", openStr, x + 400, y, 8, true, C'0,255,140', corner);
         y += lineHeight;
 
         // Fila 2: Flotante Bot y Closed Profit
@@ -176,7 +176,7 @@ public:
 
         color closedClr = (closed >= 0.0) ? C'0,255,140' : C'255,60,80';
         string closedStr = StringFormat("Ganancia Cerrada: %s$%.2f USD", (closed >= 0.0 ? "+" : ""), closed);
-        CreateOrUpdateLabel("ClosedProfit", closedStr, x + 380, y, 8, true, closedClr, corner);
+        CreateOrUpdateLabel("ClosedProfit", closedStr, x + 400, y, 8, true, closedClr, corner);
         y += lineHeight;
 
         // Fila 3: Drawdown %
@@ -185,7 +185,7 @@ public:
         CreateOrUpdateLabel("Drawdown", ddStr, x + 10, y, 8, true, ddClr, corner);
 
         string clockStr = StringFormat("Hora Broker: %s", TimeToString(TimeCurrent(), TIME_SECONDS));
-        CreateOrUpdateLabel("Clock", clockStr, x + 380, y, 8, false, C'180,190,210', corner);
+        CreateOrUpdateLabel("Clock", clockStr, x + 400, y, 8, false, C'180,190,210', corner);
         y += lineHeight + 4;
 
         CreateOrUpdateLabel("Div1", "------------------------------------------------------------------------------------------------------------", x, y, 8, false, C'0,200,255', corner);
@@ -208,7 +208,7 @@ public:
         y += lineHeight;
 
         // Motor TEMPEST_MK5 (M105)
-        string tempestStr = StringFormat("[ TEMPEST_MK5  ] : %s %s | PROX: %.0f%% | BIAS: %s | BS_MK13: ✅",
+        string tempestStr = StringFormat("[ TEMPEST_MK5  ] : %s %s | PROX: %.0f%% | BIAS: %s | BS: ✅",
                                          (isNewsLockout ? "BLOQUEADO" : "ACTIVO"),
                                          (isNewsLockout ? "🔴" : "🌐"),
                                          tempestProximity, tempestDirection);
@@ -216,7 +216,7 @@ public:
         y += lineHeight;
 
         // Motor CORTEX_MK6 (M106)
-        string crtStr = StringFormat("[ CORTEX_MK6   ] : %s %s | PROX: %.0f%% | BIAS: %s | BS_MK13: ✅",
+        string crtStr = StringFormat("[ CORTEX_MK6   ] : %s %s | PROX: %.0f%% | BIAS: %s | BS: ✅",
                                      (isNewsLockout ? "BLOQUEADO" : "ACTIVO"),
                                      (isNewsLockout ? "🔴" : "🎯"),
                                      crtProximity, crtDirection);
