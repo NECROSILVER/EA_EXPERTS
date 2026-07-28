@@ -4,10 +4,11 @@
 //|                                https://github.com/NECROSILVER/EA |
 //|                                                                  |
 //| DESCRIPCIÓN:                                                      |
-//| Motor M106 - CORTEX_MK6 (Candle Range Theory CRT SNIPER) v6.0    |
+//| Motor M106 - CRT_SNIPER_MK1 (Candle Range Theory) v7.0           |
 //| Caza de manipulación y barrido de liquidez en mechas HTF (H1)     |
 //| con seguimiento de extremo real, calibración USD para XAUUSD,    |
-//| evaluación de Tiers y Timeout activo de 20 min (4 velas M5).     |
+//| confirmación estricta de vela M5 cerrada, piso mínimo de SL      |
+//| de $1.50 USD (anti-lotaje inflado) y timeout activo de 20 min.   |
 //+------------------------------------------------------------------+
 #ifndef ENGINE_CRT_MQH
 #define ENGINE_CRT_MQH
@@ -44,6 +45,7 @@ private:
     int               m_crt_sl_buffer;
     double            m_min_sweep_usd;
     double            m_max_sweep_usd;
+    double            m_min_sl_dist_usd; // Piso mínimo de SL en USD ($1.50)
 
     double            m_risk_tier1;
     double            m_risk_tier2;
@@ -87,6 +89,7 @@ CEngine_CRT::CEngine_CRT() {
     m_crt_sl_buffer     = 20;
     m_min_sweep_usd     = 1.50;
     m_max_sweep_usd     = 15.00;
+    m_min_sl_dist_usd   = 1.50; // Mínimo $1.50 USD de Stop Loss para XAUUSD
 
     m_risk_tier1        = 0.0100; // 1.00%
     m_risk_tier2        = 0.0050; // 0.50%
@@ -103,12 +106,12 @@ bool CEngine_CRT::Init(int engineId, string name) {
 
     m_ema200_handle = iMA(_Symbol, PERIOD_H1, 200, 0, MODE_EMA, PRICE_CLOSE);
     if(m_ema200_handle == INVALID_HANDLE) {
-        Print("CORTEX_MK6 M106: Error cargando EMA 200 en H1");
+        Print("CRT SNIPER M106: Error cargando EMA 200 en H1");
         return false;
     }
 
     UpdateHTFRange();
-    PrintFormat("Motor CORTEX_MK6 (M106) v6.0 Iniciado. ID: %d", m_engineId);
+    PrintFormat("Motor CRT_SNIPER_MK1 (M106) v7.0 Iniciado. ID: %d", m_engineId);
     return true;
 }
 
@@ -117,7 +120,7 @@ void CEngine_CRT::OnDeinit() {
         IndicatorRelease(m_ema200_handle);
         m_ema200_handle = INVALID_HANDLE;
     }
-    PrintFormat("Motor CORTEX_MK6 (ID: %d) Detenido y liberado.", m_engineId);
+    PrintFormat("Motor CRT_SNIPER_MK1 (ID: %d) Detenido y liberado.", m_engineId);
 }
 
 bool CEngine_CRT::UpdateHTFRange() {
@@ -201,6 +204,7 @@ EngineSignal CEngine_CRT::Evaluate() {
     if(m_lastHtfBarTime == m_lastTradedHtfTime) return signal;
     if(CheckOpenPositions()) return signal;
 
+    // PUNTO 1: Detección estricta de Apertura de Nueva Vela M5
     datetime currentLtfTime = iTime(_Symbol, m_ltfTimeframe, 0);
     bool isNewM5Bar = false;
     if(currentLtfTime != m_lastLtfBarTime) {
@@ -212,8 +216,6 @@ EngineSignal CEngine_CRT::Evaluate() {
     double current_bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
     double point       = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
     double tick_size   = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
-    long stops_level   = SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL);
-    double min_stop_dist = (stops_level > 0) ? (stops_level * tick_size) : (50.0 * point);
 
     if(m_currentState == CRT_STATE_IDLE) {
         double sweepUpUSD   = current_ask - m_htfHigh;
@@ -235,38 +237,46 @@ EngineSignal CEngine_CRT::Evaluate() {
         m_pendingBarsCount++;
     }
 
+    // PUNTO 1: Evaluación de confirmación ÚNICAMENTE cuando abre una nueva vela M5
     if(m_currentState == CRT_STATE_SWEEP_SELL_PENDING) {
         if(current_ask > m_sweepExtremePrice) m_sweepExtremePrice = current_ask;
 
         double currentSweepUSD = current_ask - m_htfHigh;
-        double lastM5Close     = iClose(_Symbol, m_ltfTimeframe, 1);
 
-        if(lastM5Close < m_htfHigh) {
-            double sweepDepthUSD = m_sweepExtremePrice - m_htfHigh;
-            int assignedTier     = EvaluateCRT_Tier(ORDER_TYPE_SELL, sweepDepthUSD);
+        if(isNewM5Bar) {
+            double lastM5Close = iClose(_Symbol, m_ltfTimeframe, 1); // Vela M5 cerrada
 
-            signal.hasSignal    = true;
-            signal.orderType    = ORDER_TYPE_SELL;
-            signal.tierLevel    = assignedTier;
-            signal.entryPrice   = current_bid;
-            signal.proximityPct = 100.0;
-            signal.direction    = "SELL";
+            if(lastM5Close < m_htfHigh) {
+                double sweepDepthUSD = m_sweepExtremePrice - m_htfHigh;
+                int assignedTier     = EvaluateCRT_Tier(ORDER_TYPE_SELL, sweepDepthUSD);
 
-            signal.stopLoss = m_sweepExtremePrice + (tick_size * m_crt_sl_buffer);
-            double sl_dist  = MathAbs(signal.stopLoss - current_bid);
-            if(sl_dist < min_stop_dist) {
-                sl_dist = min_stop_dist;
-                signal.stopLoss = current_bid + sl_dist;
+                signal.hasSignal    = true;
+                signal.orderType    = ORDER_TYPE_SELL;
+                signal.tierLevel    = assignedTier;
+                signal.entryPrice   = current_bid;
+                signal.proximityPct = 100.0;
+                signal.direction    = "SELL";
+
+                // PUNTO 2: Aplicación de Piso Mínimo de SL en USD
+                double raw_sl_price = m_sweepExtremePrice + (tick_size * m_crt_sl_buffer);
+                double sl_dist      = MathAbs(raw_sl_price - current_bid);
+
+                if(sl_dist < m_min_sl_dist_usd) {
+                    sl_dist = m_min_sl_dist_usd; // Forzar piso de $1.50 USD
+                    signal.stopLoss = current_bid + sl_dist;
+                } else {
+                    signal.stopLoss = raw_sl_price;
+                }
+
+                double tp_dist    = sl_dist * m_crt_rr;
+                signal.takeProfit = current_bid - tp_dist;
+
+                signal.baseLot          = CalculateLotSize(sl_dist, signal.tierLevel);
+                m_lastTradedHtfTime     = m_lastHtfBarTime;
+                m_currentState          = CRT_STATE_IDLE;
+                m_pendingBarsCount      = 0;
+                return signal;
             }
-
-            double tp_dist    = sl_dist * m_crt_rr;
-            signal.takeProfit = current_bid - tp_dist;
-
-            signal.baseLot          = CalculateLotSize(sl_dist, signal.tierLevel);
-            m_lastTradedHtfTime     = m_lastHtfBarTime;
-            m_currentState          = CRT_STATE_IDLE;
-            m_pendingBarsCount      = 0;
-            return signal;
         }
 
         if(currentSweepUSD > m_max_sweep_usd || m_pendingBarsCount > 4) {
@@ -280,34 +290,41 @@ EngineSignal CEngine_CRT::Evaluate() {
         if(current_bid < m_sweepExtremePrice) m_sweepExtremePrice = current_bid;
 
         double currentSweepUSD = m_htfLow - current_bid;
-        double lastM5Close     = iClose(_Symbol, m_ltfTimeframe, 1);
 
-        if(lastM5Close > m_htfLow) {
-            double sweepDepthUSD = m_htfLow - m_sweepExtremePrice;
-            int assignedTier     = EvaluateCRT_Tier(ORDER_TYPE_BUY, sweepDepthUSD);
+        if(isNewM5Bar) {
+            double lastM5Close = iClose(_Symbol, m_ltfTimeframe, 1); // Vela M5 cerrada
 
-            signal.hasSignal    = true;
-            signal.orderType    = ORDER_TYPE_BUY;
-            signal.tierLevel    = assignedTier;
-            signal.entryPrice   = current_ask;
-            signal.proximityPct = 100.0;
-            signal.direction    = "BUY";
+            if(lastM5Close > m_htfLow) {
+                double sweepDepthUSD = m_htfLow - m_sweepExtremePrice;
+                int assignedTier     = EvaluateCRT_Tier(ORDER_TYPE_BUY, sweepDepthUSD);
 
-            signal.stopLoss = m_sweepExtremePrice - (tick_size * m_crt_sl_buffer);
-            double sl_dist  = MathAbs(current_ask - signal.stopLoss);
-            if(sl_dist < min_stop_dist) {
-                sl_dist = min_stop_dist;
-                signal.stopLoss = current_ask - sl_dist;
+                signal.hasSignal    = true;
+                signal.orderType    = ORDER_TYPE_BUY;
+                signal.tierLevel    = assignedTier;
+                signal.entryPrice   = current_ask;
+                signal.proximityPct = 100.0;
+                signal.direction    = "BUY";
+
+                // PUNTO 2: Aplicación de Piso Mínimo de SL en USD
+                double raw_sl_price = m_sweepExtremePrice - (tick_size * m_crt_sl_buffer);
+                double sl_dist      = MathAbs(current_ask - raw_sl_price);
+
+                if(sl_dist < m_min_sl_dist_usd) {
+                    sl_dist = m_min_sl_dist_usd; // Forzar piso de $1.50 USD
+                    signal.stopLoss = current_ask - sl_dist;
+                } else {
+                    signal.stopLoss = raw_sl_price;
+                }
+
+                double tp_dist    = sl_dist * m_crt_rr;
+                signal.takeProfit = current_ask + tp_dist;
+
+                signal.baseLot          = CalculateLotSize(sl_dist, signal.tierLevel);
+                m_lastTradedHtfTime     = m_lastHtfBarTime;
+                m_currentState          = CRT_STATE_IDLE;
+                m_pendingBarsCount      = 0;
+                return signal;
             }
-
-            double tp_dist    = sl_dist * m_crt_rr;
-            signal.takeProfit = current_ask + tp_dist;
-
-            signal.baseLot          = CalculateLotSize(sl_dist, signal.tierLevel);
-            m_lastTradedHtfTime     = m_lastHtfBarTime;
-            m_currentState          = CRT_STATE_IDLE;
-            m_pendingBarsCount      = 0;
-            return signal;
         }
 
         if(currentSweepUSD > m_max_sweep_usd || m_pendingBarsCount > 4) {
