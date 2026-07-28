@@ -147,6 +147,9 @@ int CEngine_Tempest::GetMacroTrend() {
 
 void CEngine_Tempest::ScanHistoricalGaps()
 {
+    ArrayFree(m_gaps);
+    m_gap_counter = 0;
+
     for(int t = 0; t < 5; t++)
     {
         ENUM_TIMEFRAMES tf = m_tracked_tfs[t];
@@ -249,21 +252,12 @@ void CEngine_Tempest::UpdateGapStates(ENUM_TIMEFRAMES tf)
         
         m_gaps[i].bars_lifetime++;
         
-        // Expiración por límite de vida útil (> 20 velas)
-        if(m_gaps[i].bars_lifetime > 20) { 
-            m_gaps[i].state = GAP_EXPIRED;
-            m_gaps[i].is_active = false; 
-            continue; 
-        }
-        
-        // Transición FVG -> iFVG
         if(m_gaps[i].state == GAP_FVG_BEARISH && last_close > m_gaps[i].price_upper) {
-            m_gaps[i].state = GAP_IFVG_BULLISH;
+            m_gaps[i].state = GAP_IFVG_BULLISH; 
         }
         else if(m_gaps[i].state == GAP_FVG_BULLISH && last_close < m_gaps[i].price_lower) {
-            m_gaps[i].state = GAP_IFVG_BEARISH;
+            m_gaps[i].state = GAP_IFVG_BEARISH; 
         }
-        // Invalidación estructural de iFVG por quiebre de nivel opuesto
         else if(m_gaps[i].state == GAP_IFVG_BULLISH && last_close < m_gaps[i].price_lower) {
             m_gaps[i].state = GAP_INVALIDATED;
             m_gaps[i].is_active = false;
@@ -272,21 +266,28 @@ void CEngine_Tempest::UpdateGapStates(ENUM_TIMEFRAMES tf)
             m_gaps[i].state = GAP_INVALIDATED;
             m_gaps[i].is_active = false;
         }
+
+        if(m_gaps[i].bars_lifetime > 100) {
+            m_gaps[i].state = GAP_EXPIRED;
+            m_gaps[i].is_active = false;
+        }
     }
 }
 
 ENUM_SETUP_TIER CEngine_Tempest::EvaluateTier(SGapStructure &gap, int current_macro_trend) {
-    if(gap.state != GAP_IFVG_BULLISH && gap.state != GAP_IFVG_BEARISH) return TIER_NONE;
-
-    if((gap.timeframe == PERIOD_M5 || gap.timeframe == PERIOD_M15) && 
-       ((gap.state == GAP_IFVG_BULLISH && current_macro_trend == 1) || (gap.state == GAP_IFVG_BEARISH && current_macro_trend == -1))) {
-        return TIER_1_OPTIMAL;
-    }
-    if((gap.timeframe == PERIOD_M15 || gap.timeframe == PERIOD_M30) && current_macro_trend == 0) return TIER_2_MEDIUM;
-    if(gap.timeframe == PERIOD_M5 && 
-       ((gap.state == GAP_IFVG_BULLISH && current_macro_trend == -1) || (gap.state == GAP_IFVG_BEARISH && current_macro_trend == 1))) {
-        return TIER_3_SPECULATIVE;
-    }
+    bool is_tf_h1_h4 = (gap.timeframe == PERIOD_H1 || gap.timeframe == PERIOD_H4);
+    bool is_ifvg     = (gap.state == GAP_IFVG_BULLISH || gap.state == GAP_IFVG_BEARISH);
+    bool is_bullish  = (gap.state == GAP_IFVG_BULLISH || gap.state == GAP_FVG_BULLISH);
+    bool is_bearish  = (gap.state == GAP_IFVG_BEARISH || gap.state == GAP_FVG_BEARISH);
+    
+    bool is_aligned = (is_bullish && current_macro_trend == 1) || (is_bearish && current_macro_trend == -1);
+    bool is_counter = (is_bullish && current_macro_trend == -1) || (is_bearish && current_macro_trend == 1);
+    
+    if(is_aligned && is_ifvg && is_tf_h1_h4) return TIER_1_OPTIMAL;
+    if(is_aligned) return TIER_2_MEDIUM;
+    if(!is_counter && is_ifvg) return TIER_2_MEDIUM;
+    if(!is_counter) return TIER_3_SPECULATIVE;
+    
     return TIER_NONE;
 }
 
@@ -294,7 +295,15 @@ double CEngine_Tempest::CalculateLotSize(double sl_dist, ENUM_SETUP_TIER tier) {
     if(sl_dist <= 0 || tier == TIER_NONE) return 0.0;
     
     double risk_pct = (tier == TIER_1_OPTIMAL) ? m_risk_tier1 : ((tier == TIER_2_MEDIUM) ? m_risk_tier2 : m_risk_tier3);
-    double risk_money = AccountInfoDouble(ACCOUNT_BALANCE) * risk_pct;
+    double accountBalance = AccountInfoDouble(ACCOUNT_BALANCE);
+
+    // Normalización de Cuenta Cent (si el contrato indica cuenta Cent)
+    double contractSize = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_CONTRACT_SIZE);
+    if(contractSize > 0 && contractSize < 100) {
+        accountBalance = accountBalance / 100.0;
+    }
+
+    double risk_money = accountBalance * risk_pct;
     
     double tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
     double tick_size = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
@@ -305,7 +314,8 @@ double CEngine_Tempest::CalculateLotSize(double sl_dist, ENUM_SETUP_TIER tier) {
     double min_lot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
     double max_lot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MAX);
     double step_lot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP);
-    
+
+    if(step_lot <= 0.0) step_lot = 0.01;
     double normalized_lot = MathRound(raw_lot / step_lot) * step_lot;
     if(normalized_lot < min_lot) normalized_lot = min_lot;
     if(normalized_lot > max_lot) normalized_lot = max_lot;
@@ -369,6 +379,7 @@ EngineSignal CEngine_Tempest::Evaluate() {
     double tick_size = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
     long stops_level = SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL);
     double min_stop_dist = stops_level * tick_size;
+    double min_lot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
     
     int cached_macro_trend = GetMacroTrend();
     
@@ -412,15 +423,21 @@ EngineSignal CEngine_Tempest::Evaluate() {
             signal.proximityPct = 100.0;
             signal.direction    = "BUY";
             
-            signal.stopLoss = m_gaps[i].price_lower - (tick_size * m_tempest_sl_buffer);
-            double sl_dist = MathAbs(current_ask - signal.stopLoss);
-            if(sl_dist < min_stop_dist) { sl_dist = min_stop_dist; signal.stopLoss = current_ask - sl_dist; }
+            // REGLA DE DOBLE DISTANCIA EN SL/TP Y MEDIO LOTE
+            double sl_dist_base = MathAbs(current_ask - (m_gaps[i].price_lower - (tick_size * m_tempest_sl_buffer)));
+            if(sl_dist_base < min_stop_dist) sl_dist_base = min_stop_dist;
+
+            double sl_dist_final = sl_dist_base * 2.0; // Doble distancia SL
+            double tp_dist_final = (sl_dist_base * m_tempest_rr) * 2.0; // Doble distancia TP
+
+            signal.stopLoss   = current_ask - sl_dist_final;
+            signal.takeProfit = current_ask + tp_dist_final;
             
-            double tp_dist = sl_dist * m_tempest_rr;
-            if(tp_dist < min_stop_dist) tp_dist = min_stop_dist;
-            signal.takeProfit = current_ask + tp_dist;
-            
-            signal.baseLot = CalculateLotSize(sl_dist, tier);
+            double rawLot = CalculateLotSize(sl_dist_base, tier);
+            double finalLot = NormalizeDouble(rawLot * 0.5, 2); // Medio lote
+            if(finalLot < min_lot) finalLot = min_lot;
+            signal.baseLot  = finalLot;
+
             m_gaps[i].is_active = false;
             return signal;
         }
@@ -433,15 +450,21 @@ EngineSignal CEngine_Tempest::Evaluate() {
             signal.proximityPct = 100.0;
             signal.direction    = "SELL";
             
-            signal.stopLoss = m_gaps[i].price_upper + (tick_size * m_tempest_sl_buffer);
-            double sl_dist = MathAbs(signal.stopLoss - current_bid);
-            if(sl_dist < min_stop_dist) { sl_dist = min_stop_dist; signal.stopLoss = current_bid + sl_dist; }
+            // REGLA DE DOBLE DISTANCIA EN SL/TP Y MEDIO LOTE
+            double sl_dist_base = MathAbs((m_gaps[i].price_upper + (tick_size * m_tempest_sl_buffer)) - current_bid);
+            if(sl_dist_base < min_stop_dist) sl_dist_base = min_stop_dist;
+
+            double sl_dist_final = sl_dist_base * 2.0; // Doble distancia SL
+            double tp_dist_final = (sl_dist_base * m_tempest_rr) * 2.0; // Doble distancia TP
+
+            signal.stopLoss   = current_bid + sl_dist_final;
+            signal.takeProfit = current_bid - tp_dist_final;
             
-            double tp_dist = sl_dist * m_tempest_rr;
-            if(tp_dist < min_stop_dist) tp_dist = min_stop_dist;
-            signal.takeProfit = current_bid - tp_dist;
-            
-            signal.baseLot = CalculateLotSize(sl_dist, tier);
+            double rawLot = CalculateLotSize(sl_dist_base, tier);
+            double finalLot = NormalizeDouble(rawLot * 0.5, 2); // Medio lote
+            if(finalLot < min_lot) finalLot = min_lot;
+            signal.baseLot  = finalLot;
+
             m_gaps[i].is_active = false;
             return signal;
         }

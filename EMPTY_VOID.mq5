@@ -1,16 +1,17 @@
 //+------------------------------------------------------------------+
 //|                                                   EMPTY_VOID.mq5 |
-//|                     EMPTY_VOID DESTRUCTIVE_CORE v2.2.1           |
+//|                     EMPTY_VOID DESTRUCTIVE_CORE v2.4.0           |
 //|                                     OPERADOR : NECRO_SILVER      |
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2026, EMPTY_VOID CORE | NECRO_SILVER"
 #property link      "https://www.mql5.com"
-#property version   "2.21"
+#property version   "2.40"
 #property strict
-#property description "  EMPTY_VOID DESTRUCTIVE_CORE v2.2.1"
+#property description "  EMPTY_VOID DESTRUCTIVE_CORE v2.4.0"
 #property description "  OPERADOR: NECRO_SILVER"
 #property description "  MOTORES INTEGRADOS: TEMPEST MK5 (M105) & CORTEX MK6 / CRT SNIPER v7.0 (M106)"
-#property description "  MÓDULO INTEGRADO: SENTINEL MK2 (Escudo Noticias 12H CDMX)"
+#property description "  MÓDULO DE TRAILING: NYX MK1 (Trailing Stop por Fases Aceleradas)"
+#property description "  MÓDULO DE SEGURIDAD: SENTINEL MK2 (Escudo Noticias 12H CDMX) & BLACK-SCHOLES MK13"
 
 #include <Trade/Trade.mqh>
 #include <EMPTY_VOID/Core/Config.mqh>
@@ -21,6 +22,7 @@
 #include <EMPTY_VOID/Security/VoidSecurityHub.mqh>
 #include <EMPTY_VOID/Risk/DrawdownGuard.mqh>
 #include <EMPTY_VOID/Risk/VoidTrailingManager.mqh>
+#include <EMPTY_VOID/Risk/NYX_MK1.mqh>
 #include <EMPTY_VOID/Notifications/NewsWatcher.mqh>
 #include <EMPTY_VOID/Notifications/StartupReport.mqh>
 #include <EMPTY_VOID/Notifications/TradeAlerts.mqh>
@@ -78,8 +80,9 @@ CEngine_CRT     *EngineCRT;
 const int TEMPEST_ENGINE_ID = 105;
 const int CRT_ENGINE_ID     = 106;
 
-// Instancia del ejecutor nativo de órdenes
+// Instancia del ejecutor nativo de órdenes y gestor NYX_MK1
 CTrade   g_trade;
+CNYX_MK1 g_nyxTrailing;
 
 // Variables de memoria globales de estado
 double   g_emaSpread      = 0.0;
@@ -238,7 +241,7 @@ int OnInit()
 
     // Punto 5: Escritura de Memoria Persistente CVoidState
     CVoidState::SetState("LastInitTime", (double)TimeCurrent());
-    CVoidState::SetState("BotVersion", 2.21);
+    CVoidState::SetState("BotVersion", 2.40);
     if(!CVoidState::HasState("LastInitTime")) isHealthOk = false;
 
     // Disparo de Alerta de Arranque ÚNICAMENTE si las puertas de salud pasaron:
@@ -377,7 +380,10 @@ void OnTick()
         }
     }
 
-    // 2.5 Gestión Cuantitativa Continua de Posiciones (Break Even & Trailing Stop Volátil 1-Sigma)
+    // 2.5 GESTIÓN DE TRAILING STOP ACELERADO POR FASES NYX_MK1 EN CADA TICK
+    g_nyxTrailing.ProcessTrailing(g_trade);
+
+    // 2.6 GESTIÓN CUANTITATIVA ADICIONAL (Break Even & Trailing Stop Volátil 1-Sigma)
     CVoidTrailingManager::ProcessQuantTrailing(
         g_trade,
         InpBsAnnualVol,
@@ -391,7 +397,7 @@ void OnTick()
         InpEnablePush
     );
 
-    // 3. EVALUACIÓN MULTI-MOTOR (TEMPEST M105 & CORTEX MK6 / CRT SNIPER v7.0 M106)
+    // 3. EVALUACIÓN DE SEÑALES INDEPENDIENTES POR MOTOR (TEMPEST M105 & CORTEX MK6 M106)
     if(CheckPointer(EngineTempest) != POINTER_INVALID)
     {
         EngineSignal sigTempest = EngineTempest.Evaluate();
@@ -458,7 +464,7 @@ void OnTradeTransaction(
                         (swap + comm),
                         prevBal,
                         currentBal,
-                        "EJECUCION REGULAR",
+                        "EJECUCION REGULAR / NYX_MK1",
                         InpEnableAlerts,
                         InpEnablePush
                     );

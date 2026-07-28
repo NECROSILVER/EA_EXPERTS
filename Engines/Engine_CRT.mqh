@@ -8,7 +8,7 @@
 //| Caza de manipulación y barrido de liquidez en mechas HTF (H1)     |
 //| con seguimiento de extremo real, calibración USD para XAUUSD,    |
 //| confirmación estricta de vela M5 cerrada, piso mínimo de SL      |
-//| de $1.50 USD (anti-lotaje inflado) y timeout activo de 20 min.   |
+//| de $1.50 USD y regla de Doble Distancia SL/TP + Medio Lotaje.   |
 //+------------------------------------------------------------------+
 #ifndef ENGINE_CRT_MQH
 #define ENGINE_CRT_MQH
@@ -178,7 +178,15 @@ double CEngine_CRT::CalculateLotSize(double sl_dist, int tier) {
     if(sl_dist <= 0 || tier <= 0) return 0.01;
 
     double risk_pct = (tier == 1) ? m_risk_tier1 : ((tier == 2) ? m_risk_tier2 : m_risk_tier3);
-    double risk_money = AccountInfoDouble(ACCOUNT_BALANCE) * risk_pct;
+    double accountBalance = AccountInfoDouble(ACCOUNT_BALANCE);
+
+    // Normalización de Cuenta Cent (si el contrato o la moneda indican cuenta Cent)
+    double contractSize = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_CONTRACT_SIZE);
+    if(contractSize > 0 && contractSize < 100) {
+        accountBalance = accountBalance / 100.0;
+    }
+
+    double risk_money = accountBalance * risk_pct;
 
     double tick_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
     double tick_size  = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
@@ -190,6 +198,7 @@ double CEngine_CRT::CalculateLotSize(double sl_dist, int tier) {
     double max_lot  = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MAX);
     double step_lot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP);
 
+    if(step_lot <= 0.0) step_lot = 0.01;
     double normalized_lot = MathRound(raw_lot / step_lot) * step_lot;
     if(normalized_lot < min_lot) normalized_lot = min_lot;
     if(normalized_lot > max_lot) normalized_lot = max_lot;
@@ -216,6 +225,7 @@ EngineSignal CEngine_CRT::Evaluate() {
     double current_bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
     double point       = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
     double tick_size   = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
+    double min_lot     = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
 
     if(m_currentState == CRT_STATE_IDLE) {
         double sweepUpUSD   = current_ask - m_htfHigh;
@@ -225,11 +235,13 @@ EngineSignal CEngine_CRT::Evaluate() {
             m_currentState      = CRT_STATE_SWEEP_SELL_PENDING;
             m_sweepExtremePrice = current_ask;
             m_pendingBarsCount  = 0;
+            PrintFormat("🎯 [CRT SNIPER M106]: Barrido Superior H1 Detectado en Ask: %.2f | Profundidad: $%.2f USD | Esperando confirmación M5...", current_ask, sweepUpUSD);
         }
         else if(sweepDownUSD >= m_min_sweep_usd && sweepDownUSD <= m_max_sweep_usd) {
             m_currentState      = CRT_STATE_SWEEP_BUY_PENDING;
             m_sweepExtremePrice = current_bid;
             m_pendingBarsCount  = 0;
+            PrintFormat("🎯 [CRT SNIPER M106]: Barrido Inferior H1 Detectado en Bid: %.2f | Profundidad: $%.2f USD | Esperando confirmación M5...", current_bid, sweepDownUSD);
         }
     }
 
@@ -257,21 +269,22 @@ EngineSignal CEngine_CRT::Evaluate() {
                 signal.proximityPct = 100.0;
                 signal.direction    = "SELL";
 
-                // PUNTO 2: Aplicación de Piso Mínimo de SL en USD
+                // REGLA DE DOBLE DISTANCIA EN SL/TP Y MEDIO LOTE
                 double raw_sl_price = m_sweepExtremePrice + (tick_size * m_crt_sl_buffer);
-                double sl_dist      = MathAbs(raw_sl_price - current_bid);
+                double sl_dist_base = MathAbs(raw_sl_price - current_bid);
+                if(sl_dist_base < m_min_sl_dist_usd) sl_dist_base = m_min_sl_dist_usd; // Piso de $1.50 USD
 
-                if(sl_dist < m_min_sl_dist_usd) {
-                    sl_dist = m_min_sl_dist_usd; // Forzar piso de $1.50 USD
-                    signal.stopLoss = current_bid + sl_dist;
-                } else {
-                    signal.stopLoss = raw_sl_price;
-                }
+                double sl_dist_final = sl_dist_base * 2.0; // Doble distancia SL
+                double tp_dist_final = (sl_dist_base * m_crt_rr) * 2.0; // Doble distancia TP
 
-                double tp_dist    = sl_dist * m_crt_rr;
-                signal.takeProfit = current_bid - tp_dist;
+                signal.stopLoss   = current_bid + sl_dist_final;
+                signal.takeProfit = current_bid - tp_dist_final;
 
-                signal.baseLot          = CalculateLotSize(sl_dist, signal.tierLevel);
+                double rawLot = CalculateLotSize(sl_dist_base, signal.tierLevel);
+                double finalLot = NormalizeDouble(rawLot * 0.5, 2); // Medio lote
+                if(finalLot < min_lot) finalLot = min_lot;
+                signal.baseLot  = finalLot;
+
                 m_lastTradedHtfTime     = m_lastHtfBarTime;
                 m_currentState          = CRT_STATE_IDLE;
                 m_pendingBarsCount      = 0;
@@ -305,21 +318,22 @@ EngineSignal CEngine_CRT::Evaluate() {
                 signal.proximityPct = 100.0;
                 signal.direction    = "BUY";
 
-                // PUNTO 2: Aplicación de Piso Mínimo de SL en USD
+                // REGLA DE DOBLE DISTANCIA EN SL/TP Y MEDIO LOTE
                 double raw_sl_price = m_sweepExtremePrice - (tick_size * m_crt_sl_buffer);
-                double sl_dist      = MathAbs(current_ask - raw_sl_price);
+                double sl_dist_base = MathAbs(current_ask - raw_sl_price);
+                if(sl_dist_base < m_min_sl_dist_usd) sl_dist_base = m_min_sl_dist_usd; // Piso de $1.50 USD
 
-                if(sl_dist < m_min_sl_dist_usd) {
-                    sl_dist = m_min_sl_dist_usd; // Forzar piso de $1.50 USD
-                    signal.stopLoss = current_ask - sl_dist;
-                } else {
-                    signal.stopLoss = raw_sl_price;
-                }
+                double sl_dist_final = sl_dist_base * 2.0; // Doble distancia SL
+                double tp_dist_final = (sl_dist_base * m_crt_rr) * 2.0; // Doble distancia TP
 
-                double tp_dist    = sl_dist * m_crt_rr;
-                signal.takeProfit = current_ask + tp_dist;
+                signal.stopLoss   = current_ask - sl_dist_final;
+                signal.takeProfit = current_ask + tp_dist_final;
 
-                signal.baseLot          = CalculateLotSize(sl_dist, signal.tierLevel);
+                double rawLot = CalculateLotSize(sl_dist_base, signal.tierLevel);
+                double finalLot = NormalizeDouble(rawLot * 0.5, 2); // Medio lote
+                if(finalLot < min_lot) finalLot = min_lot;
+                signal.baseLot  = finalLot;
+
                 m_lastTradedHtfTime     = m_lastHtfBarTime;
                 m_currentState          = CRT_STATE_IDLE;
                 m_pendingBarsCount      = 0;
